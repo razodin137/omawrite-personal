@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QDate>
+#include <QDateTime>
 #include <QObject>
 #include <QPointer>
 #include <QByteArray>
@@ -60,6 +62,12 @@ public:
     static int countWords(const QString &text);
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);
+    static QString suggestedFileName(const QString &text, const QDate &today);
+    static QString yamlScalar(const QString &value);
+    static QString derivedTitle(const QString &text, const QString &fallback);
+    static QString frontMatterText(const QString &title, const QDate &date);
+    static QString applyFrontMatter(const QString &text, bool creatingNewFile, bool modified,
+                                    const QString &fallbackTitle, const QDateTime &now);
 
     Q_INVOKABLE void attachDocument(QObject *textDocument);
     Q_INVOKABLE void openDialog();
@@ -101,6 +109,7 @@ signals:
 
 private:
     void loadDocumentText(const QString &text);
+    void updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle);
     void setFileUrl(const QUrl &url);
     void setModified(bool modified);
     void setStatus(const QString &status);

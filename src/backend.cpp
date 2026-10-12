@@ -56,6 +56,48 @@ const QRegularExpression symbolFontName(
     QStringLiteral("symbol|dingbat|emoji|icon|awesome|^D050000L$"),
     QRegularExpression::CaseInsensitiveOption);
 
+namespace {
+
+// YAML front matter: a document that opens with a "---" line, holds its
+// fields, and is closed by another "---" (or "...") line before the content.
+struct FrontMatterRange {
+    bool found = false;
+    int contentStart = 0;
+    int contentEnd = 0;
+};
+
+bool isFrontMatterDelimiter(const QString &line) {
+    const QString trimmed = line.trimmed();
+    return trimmed == QStringLiteral("---") || trimmed == QStringLiteral("...");
+}
+
+FrontMatterRange findFrontMatter(const QString &text) {
+    FrontMatterRange range;
+    int lineStart = 0;
+    bool opened = false;
+    while (lineStart <= text.size()) {
+        const int lineEnd = text.indexOf(QLatin1Char('\n'), lineStart);
+        const int end = lineEnd < 0 ? text.size() : lineEnd;
+        const QString line = text.mid(lineStart, end - lineStart);
+        if (!opened) {
+            if (line.trimmed() != QStringLiteral("---"))
+                return range;
+            opened = true;
+            range.contentStart = end + 1;
+        } else if (isFrontMatterDelimiter(line)) {
+            range.contentEnd = lineStart;
+            range.found = true;
+            return range;
+        }
+        if (lineEnd < 0)
+            return range;
+        lineStart = lineEnd + 1;
+    }
+    return range;
+}
+
+}  // namespace
+
 QString Backend::normalizedLinkUrl(const QString &clipboardText) {
     QString candidate = clipboardText.trimmed();
     static const QRegularExpression lineBreakRe(QStringLiteral("[\\r\\n]"));
@@ -556,6 +598,12 @@ void Backend::saveTo(const QUrl &url) {
         return;
     }
 
+    // A document saved for the first time gets front matter; one that already
+    // tracks `updated` gets the save's timestamp appended to its log. The
+    // buffer is updated too, so the editor always matches the file on disk.
+    const bool creatingNewFile = !m_fileUrl.isValid() || m_fileUrl.isEmpty();
+    updateFrontMatterOnSave(creatingNewFile, QFileInfo(targetName).completeBaseName());
+
     const QByteArray contents = currentDocumentText().toUtf8();
     file.write(contents);
 
@@ -769,15 +817,230 @@ int Backend::countWords(const QString &text) {
 }
 
 QString Backend::suggestedFileName(const QString &text) {
-    QString name = text.section(QLatin1Char('\n'), 0, 0).trimmed();
+    return suggestedFileName(text, QDate::currentDate());
+}
+
+QString Backend::suggestedFileName(const QString &text, const QDate &today) {
+    QString name;
+    const FrontMatterRange frontMatter = findFrontMatter(text);
+    if (frontMatter.found) {
+        const int closingNewline = text.indexOf(QLatin1Char('\n'), frontMatter.contentEnd);
+        QString after = closingNewline < 0 ? QString() : text.mid(closingNewline + 1);
+        while (after.startsWith(QLatin1Char('\n')))
+            after.remove(0, 1);
+        name = after.section(QLatin1Char('\n'), 0, 0).trimmed();
+    } else {
+        name = text.section(QLatin1Char('\n'), 0, 0).trimmed();
+    }
     name.replace(QRegularExpression(QStringLiteral("[/\\x00-\\x1f\\x7f]")),
                  QStringLiteral("-"));
-    name = name.left(120).trimmed();
-    if (name.isEmpty() || name == QStringLiteral(".") || name == QStringLiteral(".."))
-        name = QStringLiteral("Untitled");
-    if (!name.endsWith(QStringLiteral(".md"), Qt::CaseInsensitive))
-        name += QStringLiteral(".md");
-    return name;
+    name.remove(QRegularExpression(QStringLiteral("^#{1,6}\\s+")));
+    if (name.endsWith(QStringLiteral(".md"), Qt::CaseInsensitive))
+        name.chop(3);
+
+    // The day's date plus a hyphenated slug of the title, unless the title
+    // already carries a date of its own.
+    QString slug = name.toLower();
+    static const QRegularExpression nonSlugChars(QStringLiteral("[^\\p{L}\\p{N}]+"));
+    slug.replace(nonSlugChars, QStringLiteral("-"));
+    static const QRegularExpression edgeHyphens(QStringLiteral("^-+|-+$"));
+    slug.remove(edgeHyphens);
+    slug = slug.left(120);
+    if (slug.isEmpty())
+        slug = QStringLiteral("untitled");
+    static const QRegularExpression alreadyDated(QStringLiteral("^\\d{4}-\\d{2}-\\d{2}(?:-|$)"));
+    if (!alreadyDated.match(slug).hasMatch())
+        slug.prepend(today.toString(Qt::ISODate) + QLatin1Char('-'));
+    if (!slug.endsWith(QStringLiteral(".md")))
+        slug += QStringLiteral(".md");
+    return slug;
+}
+
+QString Backend::yamlScalar(const QString &value) {
+    // Plain YAML scalars cannot start with punctuation, carry ": " or a " #"
+    // comment, or collide with another YAML type such as a bool or a date.
+    static const QRegularExpression plainSafe(
+        QStringLiteral("^[A-Za-z0-9](?:[A-Za-z0-9 ._/@()+'?!&-]*)$"));
+    static const QRegularExpression anotherType(
+        QStringLiteral("^(?:true|false|null|yes|no|on|off|~|"
+                       "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?|"
+                       "\\d{4}-\\d{1,2}(?:-\\d{1,2})?.*)$"),
+        QRegularExpression::CaseInsensitiveOption);
+    if (plainSafe.match(value).hasMatch() && !anotherType.match(value).hasMatch())
+        return value;
+
+    QString escaped = value;
+    escaped.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    escaped.replace(QLatin1Char('"'), QStringLiteral("\\\""));
+    return QLatin1Char('"') + escaped + QLatin1Char('"');
+}
+
+QString Backend::derivedTitle(const QString &text, const QString &fallback) {
+    static const QRegularExpression headingRe(QStringLiteral("^(#{1,6})\\s+(.+?)\\s*$"));
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString &rawLine : lines) {
+        const QString line = rawLine.trimmed();
+        if (line.isEmpty() || isFrontMatterDelimiter(line))
+            continue;
+        const QRegularExpressionMatch heading = headingRe.match(line);
+        return heading.hasMatch() ? heading.captured(2).trimmed() : line;
+    }
+    return fallback.isEmpty() ? QStringLiteral("Untitled") : fallback;
+}
+
+QString Backend::frontMatterText(const QString &title, const QDate &date) {
+    return QStringLiteral("---\n")
+        + QStringLiteral("date: ") + date.toString(Qt::ISODate) + QStringLiteral("\n")
+        + QStringLiteral("updated: []\n")
+        + QStringLiteral("title: ") + yamlScalar(title) + QStringLiteral("\n")
+        + QStringLiteral("draft: true\n")
+        + QStringLiteral("categories: []\n")
+        + QStringLiteral("tags: []\n")
+        + QStringLiteral("---\n");
+}
+
+QString Backend::applyFrontMatter(const QString &text, bool creatingNewFile, bool modified,
+                                  const QString &fallbackTitle, const QDateTime &now) {
+    const FrontMatterRange frontMatter = findFrontMatter(text);
+    if (!frontMatter.found) {
+        if (!creatingNewFile)
+            return text;
+
+        const QString block = frontMatterText(derivedTitle(text, fallbackTitle), now.date());
+        QString body = text;
+        while (body.startsWith(QLatin1Char('\n')))
+            body.remove(0, 1);
+        return body.isEmpty() ? block : block + QLatin1Char('\n') + body;
+    }
+
+    if (!modified)
+        return text;
+
+    // `updated` keeps a log of every save's timestamp. A scalar value (or an
+    // empty field) becomes the first entry, front matter that never tracked
+    // one has the log started after its `date`, and every other field is the
+    // writer's own and is left exactly as written.
+    static const QRegularExpression updatedKeyRe(
+        QStringLiteral("^(\\s*)updated\\s*:\\s*(.*?)\\s*$"));
+    static const QRegularExpression dateKeyRe(QStringLiteral("^(\\s*)date\\s*:"));
+    static const QRegularExpression itemRe(QStringLiteral("^(\\s*)-\\s"));
+
+    const QString stamp = now.toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+    int dateLineEnd = -1;
+    QString dateIndent;
+
+    int keyStart = frontMatter.contentStart;
+    while (keyStart < frontMatter.contentEnd) {
+        int keyEnd = text.indexOf(QLatin1Char('\n'), keyStart);
+        if (keyEnd < 0 || keyEnd > frontMatter.contentEnd)
+            keyEnd = frontMatter.contentEnd;
+        const QString line = text.mid(keyStart, keyEnd - keyStart);
+        const QRegularExpressionMatch key = updatedKeyRe.match(line);
+        if (!key.hasMatch()) {
+            if (dateLineEnd < 0) {
+                const QRegularExpressionMatch dateKey = dateKeyRe.match(line);
+                if (dateKey.hasMatch()) {
+                    dateIndent = dateKey.captured(1);
+                    dateLineEnd = keyEnd;
+                }
+            }
+            keyStart = keyEnd + 1;
+            continue;
+        }
+
+        const QString keyIndent = key.captured(1);
+        const QString inlineValue = key.captured(2);
+        const bool emptyList = inlineValue.isEmpty()
+            || inlineValue == QStringLiteral("[]");
+
+        // Collect the block sequence that follows the key, if there is one.
+        int itemsStart = keyEnd + 1;
+        int itemsEnd = keyEnd;
+        QString firstItemIndent;
+        QString lastEntry;
+        int scan = itemsStart;
+        while (scan < frontMatter.contentEnd) {
+            int lineEnd = text.indexOf(QLatin1Char('\n'), scan);
+            if (lineEnd < 0 || lineEnd > frontMatter.contentEnd)
+                lineEnd = frontMatter.contentEnd;
+            const QString line = text.mid(scan, lineEnd - scan);
+            const QRegularExpressionMatch item = itemRe.match(line);
+            if (!item.hasMatch())
+                break;
+            if (firstItemIndent.isNull())
+                firstItemIndent = item.captured(1);
+            lastEntry = line.mid(item.capturedLength(0)).trimmed();
+            itemsEnd = lineEnd;
+            scan = lineEnd + 1;
+        }
+
+        if (lastEntry.isNull() && !emptyList)
+            lastEntry = inlineValue;
+        if (lastEntry == stamp)
+            return text;  // this save's minute is already logged
+
+        const QString itemIndent = !firstItemIndent.isNull()
+            ? firstItemIndent
+            : keyIndent + QStringLiteral("  ");
+        QString replacement = keyIndent + QStringLiteral("updated:\n");
+        if (!emptyList)
+            replacement += itemIndent + QStringLiteral("- ") + inlineValue + QStringLiteral("\n");
+        if (itemsEnd > keyEnd)
+            replacement += text.mid(itemsStart, itemsEnd - itemsStart) + QStringLiteral("\n");
+        replacement += itemIndent + QStringLiteral("- ") + stamp;
+
+        return text.left(keyStart) + replacement + text.mid(itemsEnd);
+    }
+
+    // No `updated` field anywhere: start the log after the `date` line, or at
+    // the top of the front matter when the writer keeps no date either.
+    const QString indent = dateLineEnd >= 0 ? dateIndent : QString();
+    const int insertAt = dateLineEnd >= 0 ? dateLineEnd + 1 : frontMatter.contentStart;
+    return text.left(insertAt)
+        + indent + QStringLiteral("updated:\n")
+        + indent + QStringLiteral("  - ") + stamp + QStringLiteral("\n")
+        + text.mid(insertAt);
+}
+
+void Backend::updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle) {
+    if (!m_document)
+        return;
+
+    const QString text = m_document->toPlainText();
+    const QString updated = applyFrontMatter(text, creatingNewFile, m_modified, fallbackTitle,
+                                             QDateTime::currentDateTime());
+    if (updated == text)
+        return;
+
+    // The change always sits at the head of the document; locate it with a
+    // common prefix/suffix so it is applied in the buffer as one edit too.
+    int prefix = 0;
+    while (prefix < text.size() && prefix < updated.size()
+           && text.at(prefix) == updated.at(prefix))
+        ++prefix;
+    int suffix = 0;
+    while (suffix < text.size() - prefix && suffix < updated.size() - prefix
+           && text.at(text.size() - 1 - suffix) == updated.at(updated.size() - 1 - suffix))
+        ++suffix;
+    const QString replacement = updated.mid(prefix, updated.size() - prefix - suffix);
+
+    // m_loading keeps the insertion from being reported as a fresh user edit
+    // that would flip the just-saved document back to "Unsaved".
+    m_loading = true;
+    QTextCursor cursor(m_document);
+    cursor.setPosition(prefix);
+    cursor.setPosition(qMin(text.size() - suffix, m_document->characterCount() - 1),
+                       QTextCursor::KeepAnchor);
+    cursor.insertText(replacement);
+    m_loading = false;
+
+    m_lastDocumentText = m_document->toPlainText();
+    m_lastChangePos = prefix;
+    m_lastChangeAdded = replacement.size();
+    reapplyTypographyToChange();
+    m_formattedBlockCount = m_document->blockCount();
+    m_wordCountTimer.stop();
+    setWordCount(countWords(m_lastDocumentText));
 }
 
 void Backend::setWordCount(int words) {

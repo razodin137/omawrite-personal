@@ -37,10 +37,13 @@ protected:
     void highlightBlock(const QString &text) override;
 
 private:
+    enum BlockState { NormalBlock = 0, FrontMatterBlock = 1 };
+
     void rebuildFormats();
     void highlightMarkers(const QString &text);
     void highlightInline(const QString &text);
     void highlightSearch(const QString &text);
+    bool frontMatterCloses() const;
 
     bool m_darkMode = true;
     QString m_customBackground;

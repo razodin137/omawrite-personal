@@ -3,7 +3,17 @@
 #include <QColor>
 #include <QFont>
 #include <QFontMetricsF>
+#include <QTextBlock>
 #include <QTextDocument>
+
+namespace {
+
+bool isFrontMatterDelimiter(const QString &text) {
+    const QString trimmed = text.trimmed();
+    return trimmed == QStringLiteral("---") || trimmed == QStringLiteral("...");
+}
+
+}  // namespace
 
 MarkdownHighlighter::MarkdownHighlighter(QTextDocument *document)
     : QSyntaxHighlighter(document) {
@@ -111,14 +121,44 @@ void MarkdownHighlighter::rebuildFormats() {
 }
 
 void MarkdownHighlighter::highlightBlock(const QString &text) {
-    if (!text.isEmpty()) {
-        highlightMarkers(text);
-        if (text.contains(QLatin1Char('`')) || text.contains(QLatin1Char('*'))
-            || text.contains(QLatin1Char('_')) || text.contains(QLatin1Char('['))) {
-            highlightInline(text);
+    // Front matter only counts when the document opens with a delimiter that
+    // is closed later; otherwise a leading thematic break would dim the whole
+    // document. It is rendered as muted metadata rather than Markdown.
+    if (previousBlockState() == FrontMatterBlock) {
+        setCurrentBlockState(isFrontMatterDelimiter(text) ? NormalBlock
+                                                          : FrontMatterBlock);
+        setFormat(0, text.length(), m_markerFormat);
+    } else if (currentBlock().blockNumber() == 0 && text.trimmed() == QStringLiteral("---")
+               && frontMatterCloses()) {
+        setCurrentBlockState(FrontMatterBlock);
+        setFormat(0, text.length(), m_markerFormat);
+    } else {
+        setCurrentBlockState(NormalBlock);
+        if (!text.isEmpty()) {
+            highlightMarkers(text);
+            if (text.contains(QLatin1Char('`')) || text.contains(QLatin1Char('*'))
+                || text.contains(QLatin1Char('_')) || text.contains(QLatin1Char('['))) {
+                highlightInline(text);
+            }
         }
     }
     highlightSearch(text);
+}
+
+bool MarkdownHighlighter::frontMatterCloses() const {
+    const QTextDocument *document = this->document();
+    if (!document)
+        return false;
+
+    // Front matter is a handful of fields, so the search is capped to keep a
+    // stray unclosed "---" from scanning a long document on every edit.
+    int blocks = 0;
+    for (QTextBlock block = document->firstBlock().next();
+         block.isValid() && blocks < 100; block = block.next(), ++blocks) {
+        if (isFrontMatterDelimiter(block.text()))
+            return true;
+    }
+    return false;
 }
 
 void MarkdownHighlighter::highlightSearch(const QString &text) {
