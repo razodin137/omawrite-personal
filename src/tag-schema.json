@@ -1,0 +1,45 @@
+{
+    "stateChars": 4000,
+    "questions": {
+        "topic": {
+            "type": "choice",
+            "instructions": "Which of these topics is this piece of writing mostly about?",
+            "criteria": {
+                "tech": "computers, software, programming, gadgets, and the internet",
+                "food": "cooking, recipes, eating, drinking, and restaurants",
+                "travel": "trips, places, journeys, and being somewhere away from home",
+                "work": "the writer's job, projects, meetings, and colleagues",
+                "personal": "the writer's private life, feelings, relationships, and memories",
+                "health": "the writer's body, illness, exercise, sleep, and wellbeing",
+                "finance": "money, spending, budgets, and investments",
+                "learning": "studying, books, courses, and understanding new things",
+                "other": "none of these topics"
+            },
+            "tags": {
+                "tech": "tech",
+                "food": "food",
+                "travel": "travel",
+                "work": "work",
+                "personal": "personal",
+                "health": "health",
+                "finance": "finance",
+                "learning": "learning"
+            }
+        },
+        "journal": {
+            "type": "noul",
+            "instructions": "Is this a diary or journal entry about the writer's own day or life?",
+            "tag": "journal"
+        },
+        "planning": {
+            "type": "noul",
+            "instructions": "Is this piece primarily a plan, outline, or list of things to do?",
+            "tag": "planning"
+        },
+        "fiction": {
+            "type": "noul",
+            "instructions": "Is this a fictional story with invented characters or events?",
+            "tag": "fiction"
+        }
+    }
+}

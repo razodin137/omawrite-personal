@@ -1,8 +1,8 @@
 #include "backend.h"
 
 #include <QClipboard>
-#include <QColor>
-#include <QCoreApplication>
+#include <QCryptographicHash>
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -15,9 +15,9 @@
 #include <QPrinter>
 #include <QQuickTextDocument>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QLockFile>
 #include <QSaveFile>
@@ -33,11 +33,16 @@
 #include <algorithm>
 
 #include "markdownhighlighter.h"
-
+#include "systemone.h"
 constexpr qreal typoraLineHeightPercent = 140;
 const QString lastSaveDirectorySetting = QStringLiteral("file/lastSaveDirectory");
 const QString editorFontSetting = QStringLiteral("editor/font");
-
+const QString taggingEnabledSetting = QStringLiteral("tagging/enabled");
+const QString taggingEndpointSetting = QStringLiteral("tagging/endpoint");
+const QString taggingModelSetting = QStringLiteral("tagging/model");
+const QString taggingApiKeySetting = QStringLiteral("tagging/apiKey");
+const QString taggingTimeoutSetting = QStringLiteral("tagging/timeoutMs");
+const QString taggingSchemaPathSetting = QStringLiteral("tagging/schemaPath");
 // Noto ships a separate family per script, which buries every other font in
 // the picker. Offer only the core Latin families; the rest still serve as
 // fallbacks for whatever scripts a document contains.
@@ -94,6 +99,77 @@ FrontMatterRange findFrontMatter(const QString &text) {
         lineStart = lineEnd + 1;
     }
     return range;
+}
+
+QString bodyAfterFrontMatter(const QString &text) {
+    const FrontMatterRange frontMatter = findFrontMatter(text);
+    if (!frontMatter.found)
+        return text;
+    QString body = text.mid(frontMatter.contentEnd);
+    const int delimiterEnd = body.indexOf(QLatin1Char('\n'));
+    body = delimiterEnd < 0 ? QString() : body.mid(delimiterEnd + 1);
+    while (body.startsWith(QLatin1Char('\n')))
+        body.remove(0, 1);
+    return body;
+}
+
+QString stripYamlQuotes(QString value) {
+    if (value.size() >= 2 && ((value.startsWith(QLatin1Char('"'))
+                                    && value.endsWith(QLatin1Char('"')))
+                               || (value.startsWith(QLatin1Char('\''))
+                                   && value.endsWith(QLatin1Char('\'')))))
+        value = value.mid(1, value.size() - 2);
+    return value.trimmed();
+}
+
+// A flow YAML list like [a, "b, c", 'd'] into its scalar items.
+QStringList flowListItems(const QString &value) {
+    QStringList items;
+    QString item;
+    bool quoted = false;
+    QChar quote;
+    for (const QChar c : value) {
+        if (quoted) {
+            if (c == quote)
+                quoted = false;
+            else
+                item += c;
+        } else if (c == QLatin1Char('"') || c == QLatin1Char('\'')) {
+            quoted = true;
+            quote = c;
+        } else if (c == QLatin1Char(',')) {
+            items.append(stripYamlQuotes(item));
+            item.clear();
+        } else {
+            item += c;
+        }
+    }
+    if (!stripYamlQuotes(item).isEmpty())
+        items.append(stripYamlQuotes(item));
+    return items;
+}
+
+// The swappable decision server the tagger talks to. Laya's laya-serve,
+// Ollama's decision models, and TypeSafe Jev all speak /v1/systemone.
+DecisionServer loadDecisionServer() {
+    QSettings settings;
+    DecisionServer server;
+    server.endpoint = QUrl(settings.value(
+        taggingEndpointSetting,
+        QStringLiteral("http://127.0.0.1:8000/v1/systemone")).toString());
+    server.model = settings.value(
+        taggingModelSetting, QStringLiteral("laya:latest")).toString();
+    server.apiKey = settings.value(taggingApiKeySetting).toString();
+    server.timeoutMs = settings.value(taggingTimeoutSetting, 6000).toInt();
+    return server;
+}
+
+QString tagSchemaPath() {
+    const QString configured = QSettings().value(taggingSchemaPathSetting).toString();
+    if (!configured.isEmpty())
+        return configured;
+    return QDir(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation))
+        .filePath(QStringLiteral("tag-schema.json"));
 }
 
 }  // namespace
@@ -601,8 +677,12 @@ void Backend::saveTo(const QUrl &url) {
     // A document saved for the first time gets front matter; one that already
     // tracks `updated` gets the save's timestamp appended to its log. The
     // buffer is updated too, so the editor always matches the file on disk.
+    // Decisions are collected first so the tags land in the file the moment
+    // it is written; a missing decision server never blocks the save.
     const bool creatingNewFile = !m_fileUrl.isValid() || m_fileUrl.isEmpty();
-    updateFrontMatterOnSave(creatingNewFile, QFileInfo(targetName).completeBaseName());
+    const QStringList decidedTags = decideSaveTags(creatingNewFile);
+    updateFrontMatterOnSave(creatingNewFile, QFileInfo(targetName).completeBaseName(),
+                            decidedTags);
 
     const QByteArray contents = currentDocumentText().toUtf8();
     file.write(contents);
@@ -631,7 +711,10 @@ void Backend::saveTo(const QUrl &url) {
     QSettings().setValue(lastSaveDirectorySetting,
                          QFileInfo(url.toLocalFile()).absolutePath());
     setModified(false);
-    setStatus(QStringLiteral("Saved %1").arg(fileName()));
+    QString status = QStringLiteral("Saved %1").arg(fileName());
+    if (!m_lastTagNote.isEmpty())
+        status += QStringLiteral(" · %1").arg(m_lastTagNote);
+    setStatus(status);
     clearRecovery();
     emit saveSucceeded();
 
@@ -1002,13 +1085,168 @@ QString Backend::applyFrontMatter(const QString &text, bool creatingNewFile, boo
         + text.mid(insertAt);
 }
 
-void Backend::updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle) {
+// Merges decided tags into the front matter's `tags` field, keeping
+// whatever the writer already listed and the style it was written in.
+QString Backend::applyFrontMatterTags(const QString &text, const QStringList &tags,
+                                      QStringList *added) {
+    if (added)
+        added->clear();
+    const FrontMatterRange frontMatter = findFrontMatter(text);
+    if (!frontMatter.found || tags.isEmpty())
+        return text;
+
+    static const QRegularExpression tagsKeyRe(
+        QStringLiteral("^(\\s*)tags\\s*:\\s*(.*?)\\s*$"));
+    static const QRegularExpression itemRe(QStringLiteral("^(\\s*)-\\s"));
+
+    int keyStart = frontMatter.contentStart;
+    while (keyStart < frontMatter.contentEnd) {
+        int keyEnd = text.indexOf(QLatin1Char('\n'), keyStart);
+        if (keyEnd < 0 || keyEnd > frontMatter.contentEnd)
+            keyEnd = frontMatter.contentEnd;
+        const QString line = text.mid(keyStart, keyEnd - keyStart);
+        const QRegularExpressionMatch key = tagsKeyRe.match(line);
+        if (!key.hasMatch()) {
+            keyStart = keyEnd + 1;
+            continue;
+        }
+
+        const QString keyIndent = key.captured(1);
+        const QString inlineValue = key.captured(2);
+
+        // Collect the block sequence that follows the key, if there is one.
+        int itemsStart = keyEnd + 1;
+        int itemsEnd = keyEnd;
+        QString firstItemIndent;
+        QStringList existing;
+        int scan = itemsStart;
+        while (scan < frontMatter.contentEnd) {
+            int lineEnd = text.indexOf(QLatin1Char('\n'), scan);
+            if (lineEnd < 0 || lineEnd > frontMatter.contentEnd)
+                lineEnd = frontMatter.contentEnd;
+            const QString itemLine = text.mid(scan, lineEnd - scan);
+            const QRegularExpressionMatch item = itemRe.match(itemLine);
+            if (!item.hasMatch())
+                break;
+            if (firstItemIndent.isNull())
+                firstItemIndent = item.captured(1);
+            existing.append(stripYamlQuotes(itemLine.mid(item.capturedLength(0))));
+            itemsEnd = lineEnd;
+            scan = lineEnd + 1;
+        }
+
+        // Without a block, an inline value is a flow list, a scalar, or empty.
+        if (itemsEnd == keyEnd) {
+            if (inlineValue.startsWith(QLatin1Char('[')))
+                existing.append(flowListItems(inlineValue));
+            else if (!inlineValue.isEmpty())
+                existing.append(stripYamlQuotes(inlineValue));
+        }
+
+        QStringList missing;
+        for (const QString &tag : tags)
+            if (!existing.contains(tag, Qt::CaseInsensitive)
+                    && !missing.contains(tag, Qt::CaseInsensitive))
+                missing.append(tag);
+        if (added)
+            *added = missing;
+        if (missing.isEmpty())
+            return text;
+
+        if (itemsEnd > keyEnd) {
+            // Block style: keep the writer's items and append the new ones.
+            QStringList lines;
+            lines << line << text.mid(itemsStart, itemsEnd - itemsStart);
+            const QString itemIndent = firstItemIndent.isNull()
+                ? keyIndent + QStringLiteral("  ") : firstItemIndent;
+            for (const QString &tag : missing)
+                lines << itemIndent + QStringLiteral("- ") + yamlScalar(tag);
+            return text.left(keyStart) + lines.join(QLatin1Char('\n'))
+                + text.mid(itemsEnd);
+        }
+
+        // Flow style: one inline list, quoting anything that needs it.
+        QStringList rendered;
+        for (const QString &tag : existing + missing)
+            rendered << yamlScalar(tag);
+        const QString replacement = keyIndent + QStringLiteral("tags: [")
+            + rendered.join(QStringLiteral(", ")) + QLatin1Char(']');
+        return text.left(keyStart) + replacement + text.mid(keyEnd);
+    }
+
+    // No `tags` field anywhere: open one at the bottom of the front matter.
+    QStringList rendered;
+    for (const QString &tag : tags)
+        rendered << yamlScalar(tag);
+    if (added)
+        *added = tags;
+    return text.left(frontMatter.contentEnd)
+        + QStringLiteral("tags: [") + rendered.join(QStringLiteral(", "))
+        + QLatin1Char(']') + QLatin1Char('\n') + text.mid(frontMatter.contentEnd);
+}
+
+// Asks the configured decision server for tags covering the document's
+// body. Runs at most once per distinct body: unchanged text keeps the tags
+// it already carries, so manual tag edits survive later saves.
+QStringList Backend::decideSaveTags(bool creatingNewFile) {
+    m_lastTagNote.clear();
+
+    if (!QSettings().value(taggingEnabledSetting, true).toBool())
+        return {};
+
+    const QString text = currentDocumentText();
+    if (!creatingNewFile && !findFrontMatter(text).found)
+        return {};  // plain files are never modified, so there is nowhere to write
+    if (!m_modified && !creatingNewFile)
+        return {};
+
+    const QString body = bodyAfterFrontMatter(text).trimmed();
+    if (body.isEmpty())
+        return {};
+
+    QString error;
+    int stateChars = 4000;
+    const QList<TagQuestion> questions = SystemOne::loadSchema(tagSchemaPath(), &error,
+                                                                &stateChars);
+    if (questions.isEmpty()) {
+        m_lastTagNote = error;
+        return {};
+    }
+
+    const QString state = body.left(stateChars);
+    const QString stateHash = QString::fromLatin1(QCryptographicHash::hash(
+        state.toUtf8(), QCryptographicHash::Sha256).toHex());
+    if (stateHash == m_lastTagBodyHash)
+        return {};  // this body already carries its decisions
+    if (QDateTime::currentMSecsSinceEpoch() < m_tagSkipUntilMsecs)
+        return {};  // a server that just failed gets a couple of minutes' rest
+
+    const QStringList tags = SystemOne::decideTags(loadDecisionServer(), state, questions,
+                                                   &error);
+    if (!error.isEmpty()) {
+        m_tagSkipUntilMsecs = QDateTime::currentMSecsSinceEpoch() + 120000;
+        m_lastTagNote = QStringLiteral("tagger unreachable");
+        return {};
+    }
+    m_lastTagBodyHash = stateHash;
+    return tags;
+}
+
+void Backend::updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle,
+                                      const QStringList &newTags) {
     if (!m_document)
         return;
 
     const QString text = m_document->toPlainText();
-    const QString updated = applyFrontMatter(text, creatingNewFile, m_modified, fallbackTitle,
-                                             QDateTime::currentDateTime());
+    QString updated = applyFrontMatter(text, creatingNewFile, m_modified, fallbackTitle,
+                                        QDateTime::currentDateTime());
+    if (!newTags.isEmpty()) {
+        QStringList addedTags;
+        updated = applyFrontMatterTags(updated, newTags, &addedTags);
+        if (!addedTags.isEmpty())
+            m_lastTagNote = QStringLiteral("tags: %1")
+                                .arg(addedTags.join(QStringLiteral(", ")));
+    }
     if (updated == text)
         return;
 

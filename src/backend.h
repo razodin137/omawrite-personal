@@ -66,8 +66,8 @@ public:
     static QString yamlScalar(const QString &value);
     static QString derivedTitle(const QString &text, const QString &fallback);
     static QString frontMatterText(const QString &title, const QDate &date);
-    static QString applyFrontMatter(const QString &text, bool creatingNewFile, bool modified,
-                                    const QString &fallbackTitle, const QDateTime &now);
+    static QString applyFrontMatterTags(const QString &text, const QStringList &tags,
+                                         QStringList *added = nullptr);
 
     Q_INVOKABLE void attachDocument(QObject *textDocument);
     Q_INVOKABLE void openDialog();
@@ -109,7 +109,9 @@ signals:
 
 private:
     void loadDocumentText(const QString &text);
-    void updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle);
+    void updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle,
+                                 const QStringList &newTags);
+    QStringList decideSaveTags(bool creatingNewFile);
     void setFileUrl(const QUrl &url);
     void setModified(bool modified);
     void setStatus(const QString &status);
@@ -129,6 +131,9 @@ private:
     void watchCurrentFile();
     void loadOmarchyTheme();
     void watchOmarchyTheme();
+    QString m_lastTagBodyHash;
+    qint64 m_tagSkipUntilMsecs = 0;
+    QString m_lastTagNote;
 
     QUrl m_fileUrl;
     bool m_modified = false;
