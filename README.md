@@ -2,15 +2,55 @@
 
 A personal fork of Omawrite: a dead-simple Markdown writing app built with Qt Quick and C++ that automatically follows system dark/light mode, extended to maintain YAML front matter on save.
 
+> **Live Web Demo:** Try the interactive demo on GitHub Pages at [https://razodin137.github.io/omawrite-personal/](https://razodin137.github.io/omawrite-personal/).
+
 <img width="2948" height="3227" alt="screenshot-2026-06-23_15-24-08" src="https://github.com/user-attachments/assets/4e930c0d-edda-4046-b444-a59eff523329" />
 <img width="2948" height="3227" alt="screenshot-2026-06-23_15-23-23" src="https://github.com/user-attachments/assets/8ced7c26-961b-4ded-b263-84403001a951" />
 
 
 ## Install
 
-Build and install the `writecam` package with `./bin/install` (requires `makepkg`). WriteCam is its own application — it installs alongside Omawrite with its own binary, desktop entry, and settings, and the two don't interact.
+> **Note:** The one-click installer and AUR package are **specifically for Arch Linux** and Arch-based distributions (EndeavourOS, Manjaro, CachyOS, etc.) as they depend on `pacman` and `makepkg`.
 
-Run straight from the checkout instead with `./build/writecam` after `./bin/build`.
+### One-Click Install (Arch Linux only)
+
+Run in your terminal:
+
+```sh
+curl -fsSL https://razodin137.github.io/omawrite-personal/install.sh | sh
+```
+
+*(Or via GitHub raw: `curl -fsSL https://raw.githubusercontent.com/razodin137/omawrite-personal/master/install.sh | sh`)*
+
+### From Git (Arch Linux)
+
+```sh
+git clone https://github.com/razodin137/omawrite-personal.git && cd omawrite-personal && ./bin/install
+```
+
+### Arch User Repository (AUR)
+
+Once registered on the AUR, you can install with any AUR helper:
+
+```sh
+yay -S writecam-git
+# or
+paru -S writecam-git
+```
+
+### Manual Build / Other Linux Distributions
+
+If you are running another Linux distribution (Ubuntu, Fedora, Debian) or prefer to run without installing system-wide:
+
+1. Install the required dependencies:
+   - Qt 6 development libraries (`qt6-base`, `qt6-declarative`, `qt6-quickcontrols2`)
+   - `xdg-desktop-portal`
+   - C++ compiler (`gcc` or `clang`) and `make` / `qmake6`
+2. Build and run from the checkout:
+   ```sh
+   ./bin/build
+   ./build/writecam
+   ```
 
 ## Shortcuts
 

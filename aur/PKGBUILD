@@ -1,0 +1,36 @@
+# Maintainer: razodin137 <razodin137@gmail.com>
+
+pkgname=writecam-git
+_pkgname=writecam
+pkgver=0.6.0.r2.g2cefd08
+pkgrel=1
+pkgdesc='Dead-simple Markdown writing app with YAML front matter, built with Qt Quick'
+arch=('x86_64')
+url='https://github.com/razodin137/omawrite-personal'
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative' 'xdg-desktop-portal')
+makedepends=('git' 'gcc' 'make' 'qt6-base' 'qt6-declarative')
+provides=('writecam')
+conflicts=('writecam')
+source=("$_pkgname::git+https://github.com/razodin137/omawrite-personal.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$srcdir/$_pkgname"
+  git describe --long --tags 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' ||
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+build() {
+  cd "$srcdir/$_pkgname"
+  ./bin/build
+}
+
+package() {
+  cd "$srcdir/$_pkgname"
+  install -Dm755 build/writecam "$pkgdir/usr/bin/writecam"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 fonts/OFL.txt "$pkgdir/usr/share/licenses/$pkgname/OFL.txt"
+  install -Dm644 pkgbuild/writecam.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/writecam.svg"
+  install -Dm644 pkgbuild/writecam.desktop "$pkgdir/usr/share/applications/writecam.desktop"
+}

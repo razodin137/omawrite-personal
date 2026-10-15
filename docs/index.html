@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WriteCam — Dead-simple Markdown writing app with YAML front matter</title>
+  
+  <!-- Primary Meta Tags -->
+  <meta name="title" content="WriteCam — Dead-simple Markdown writing app with YAML front matter">
+  <meta name="description" content="Dead-simple Markdown writing app with YAML front matter, built with Qt Quick and C++. Preserves and auto-updates front matter on save.">
+  <link rel="canonical" href="https://razodin137.github.io/omawrite-personal/">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://razodin137.github.io/omawrite-personal/">
+  <meta property="og:title" content="WriteCam — Dead-simple Markdown writing app with YAML front matter">
+  <meta property="og:description" content="Dead-simple Markdown writing app with YAML front matter, built with Qt Quick and C++.">
+  <meta property="og:image" content="https://razodin137.github.io/omawrite-personal/writecam.svg">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary">
+  <meta property="twitter:url" content="https://razodin137.github.io/omawrite-personal/">
+  <meta property="twitter:title" content="WriteCam — Dead-simple Markdown writing app with YAML front matter">
+  <meta property="twitter:description" content="Dead-simple Markdown writing app with YAML front matter, built with Qt Quick and C++.">
+  <meta property="twitter:image" content="https://razodin137.github.io/omawrite-personal/writecam.svg">
+
+  <link rel="icon" type="image/svg+xml" href="writecam.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="top-bar">
+      <div class="brand">
+        <img src="writecam.svg" alt="WriteCam Icon" class="brand-icon">
+        <span>WriteCam</span>
+        <span class="brand-tag">Web Demo</span>
+      </div>
+      <div class="top-actions">
+        <a href="https://github.com/razodin137/omawrite-personal#install" target="_blank" rel="noopener" class="aur-pill" title="Install on Arch Linux">Arch Linux Install</a>
+        <a href="https://github.com/razodin137/omawrite-personal" target="_blank" rel="noopener" class="top-link" title="View Source on GitHub">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          GitHub
+        </a>
+        <button id="theme-toggle" class="icon-btn" title="Toggle Light / Dark mode" aria-label="Toggle theme">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 3c-4.97 0-9 4.03-9 9 0 4.97 4.03 9 9 9 4.97 0 9-4.03 9-9 0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Floating Search & Replace Bar -->
+    <div id="search-panel" class="search-panel">
+      <div class="search-row">
+        <input type="text" id="search-input" class="search-input" placeholder="Find in document..." autocomplete="off">
+        <span id="search-count" class="search-count"></span>
+        <button id="search-close" class="icon-btn" title="Close search (Esc)">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div id="replace-row" class="search-row" style="display: none;">
+        <input type="text" id="replace-input" class="search-input" placeholder="Replace with..." autocomplete="off">
+        <button id="replace-current" class="icon-btn" style="font-size: 11px; padding: 4px 8px;">Replace</button>
+        <button id="replace-all" class="icon-btn" style="font-size: 11px; padding: 4px 8px;">Replace All</button>
+      </div>
+    </div>
+
+    <!-- Main Editor -->
+    <main class="editor-scroller">
+      <div class="editor-wrapper">
+        <textarea id="editor" spellcheck="true" placeholder="# Start writing"># Welcome to WriteCam
+
+A dead-simple Markdown writing app built with Qt Quick and C++ that automatically follows your desktop dark/light mode, extended to maintain YAML front matter on save.
+
+## Front Matter Automation
+
+When saving a new document, WriteCam automatically inserts clean YAML front matter at the top:
+
+```yaml
+---
+date: 2026-10-15
+updated: []
+title: "Welcome to WriteCam"
+draft: true
+categories: []
+tags: []
+---
+```
+
+Every subsequent save appends that save's timestamp to the `updated` log, keeping your document revision history intact:
+
+```yaml
+updated:
+  - 2026-10-15 14:23
+  - 2026-10-15 16:45
+```
+
+## Quick Shortcuts
+
+- `Ctrl+S` : Save document & update front matter
+- `Ctrl+O` : Open a Markdown file
+- `Ctrl+F` : Find in text
+- `Ctrl+H` : Find and Replace
+- `Ctrl+B` : Bold text
+- `Ctrl+I` : Italic text
+- `Ctrl+K` : Link Markdown
+## Install on Arch Linux
+
+Run in your terminal:
+```sh
+curl -fsSL https://razodin137.github.io/omawrite-personal/install.sh | sh
+```
+
+Try editing this text and pressing `Ctrl+S` (or the Save button below) to see front matter generation in action!
+</textarea>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer-bar">
+      <div class="footer-left">
+        <button id="save-btn" class="footer-btn" title="Save document (Ctrl+S)">
+          <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+        </button>
+        <button id="open-btn" class="footer-btn" title="Open file (Ctrl+O)">
+          <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+        </button>
+        <button id="font-picker-btn" class="footer-btn" title="Choose editor font">
+          <svg viewBox="0 0 24 24"><path d="M9.93 13.5h4.14L12 7.98zM20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-4.05 16.5l-1.14-3H9.17l-1.12 3H5.96l5.11-13h1.86l5.11 13h-2.09z"/></svg>
+        </button>
+        <span id="status-label" class="status-label"></span>
+      </div>
+
+      <div class="footer-right">
+        <span id="word-count">0 Words</span>
+        <span id="char-count">0 Characters</span>
+        <button id="shortcuts-btn" class="footer-btn" title="Shortcuts reference (Ctrl+?)">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Hidden File Input for Open -->
+  <input type="file" id="file-input" accept=".md,.markdown,.txt">
+
+  <!-- Shortcuts Reference Modal -->
+  <div id="shortcuts-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Keyboard Shortcuts</h3>
+        <button class="icon-btn close-modal" title="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+      </div>
+      <table class="shortcut-table">
+        <tbody>
+          <tr><td>Save document & front matter</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>S</kbd></td></tr>
+          <tr><td>Open Markdown file</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>O</kbd></td></tr>
+          <tr><td>Find in text</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>F</kbd></td></tr>
+          <tr><td>Find and replace</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>H</kbd></td></tr>
+          <tr><td>Bold text</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>B</kbd></td></tr>
+          <tr><td>Italic text</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>I</kbd></td></tr>
+          <tr><td>Insert link</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>K</kbd></td></tr>
+          <tr><td>Toggle Light / Dark mode</td><td class="shortcut-key"><kbd>Header Icon</kbd></td></tr>
+          <tr><td>Show shortcuts reference</td><td class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>?</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Font Picker Modal -->
+  <div id="font-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Select Editor Font</h3>
+        <button class="icon-btn close-modal" title="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+      </div>
+      <div class="font-list">
+        <div class="font-option selected" data-font="'IBM Plex Mono', monospace" style="font-family: 'IBM Plex Mono', monospace;">
+          <span>IBM Plex Mono (Default)</span>
+          <span>Sample</span>
+        </div>
+        <div class="font-option" data-font="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" style="font-family: monospace;">
+          <span>System Monospace</span>
+          <span>Sample</span>
+        </div>
+        <div class="font-option" data-font="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" style="font-family: sans-serif;">
+          <span>System Sans-Serif</span>
+          <span>Sample</span>
+        </div>
+        <div class="font-option" data-font="Georgia, 'Times New Roman', serif" style="font-family: serif;">
+          <span>Classic Serif</span>
+          <span>Sample</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

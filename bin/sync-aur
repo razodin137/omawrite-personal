@@ -1,0 +1,47 @@
+#!/usr/bin/env sh
+set -eu
+
+# Syncs the AUR package repository for writecam-git
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+AUR_DIR="$ROOT/aur"
+PKG_NAME="writecam-git"
+AUR_REPO_URL="ssh://aur@aur.archlinux.org/${PKG_NAME}.git"
+TEMP_DIR="$(mktemp -d /tmp/aur-sync-XXXXXX)"
+
+cleanup() {
+  rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT INT TERM
+
+echo "==> Generating latest .SRCINFO in $AUR_DIR..."
+cd "$AUR_DIR"
+makepkg --printsrcinfo > .SRCINFO
+
+echo "==> Cloning $AUR_REPO_URL into temporary directory..."
+if git clone "$AUR_REPO_URL" "$TEMP_DIR/$PKG_NAME"; then
+  echo "==> Copying package files to AUR repository..."
+  cp -f "$AUR_DIR/PKGBUILD" "$TEMP_DIR/$PKG_NAME/PKGBUILD"
+  cp -f "$AUR_DIR/.SRCINFO" "$TEMP_DIR/$PKG_NAME/.SRCINFO"
+  
+  cd "$TEMP_DIR/$PKG_NAME"
+  git add PKGBUILD .SRCINFO
+  
+  if git diff --cached --quiet; then
+    echo "==> AUR repository is already up to date. Nothing to commit."
+  else
+    VERSION="$(grep -m1 '^pkgver = ' .SRCINFO | cut -d' ' -f3)"
+    REL="$(grep -m1 '^pkgrel = ' .SRCINFO | cut -d' ' -f3)"
+    echo "==> Committing and pushing ${PKG_NAME} ${VERSION}-${REL} to AUR..."
+    git commit -m "Update to ${VERSION}-${REL}"
+    git push origin master
+    echo "==> Successfully pushed to AUR!"
+  fi
+else
+  echo ""
+  echo "Could not clone $AUR_REPO_URL."
+  echo "Make sure:"
+  echo "  1. You have registered an account at https://aur.archlinux.org"
+  echo "  2. You have added your SSH public key (~/.ssh/id_ed25519.pub or ~/.ssh/aur.pub) to your AUR account"
+  echo "  3. You have SSH access configured for aur@aur.archlinux.org"
+  exit 1
+fi
