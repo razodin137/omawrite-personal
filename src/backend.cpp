@@ -431,6 +431,20 @@ void Backend::updateAlternativeMarks() {
             spans.append(MarkdownHighlighter::Span{alternative.start, alternative.length});
     }
     m_highlighter->setAlternativeSpans(spans);
+
+    // The pointer can only tint a run that still exists; a flip or an edit
+    // above it moves the span, and a deleted run lets go of the pointer.
+    if (m_pointerActive && m_pointerAlternative >= alternatives.size()) {
+        m_pointerActive = false;
+        m_pointerAlternative = -1;
+        emit pointerChanged();
+    }
+    if (m_pointerActive && m_pointerAlternative >= 0) {
+        const WriteCamAlternative &alternative = alternatives.at(m_pointerAlternative);
+        m_highlighter->setPointerSpan({alternative.start, alternative.length});
+    } else {
+        m_highlighter->setPointerSpan({0, 0});
+    }
 }
 
 void Backend::openDialog() {
@@ -674,6 +688,11 @@ bool Backend::editorTextChanged() {
         return true;
     }
 
+    // Typing takes the arrow keys back for the caret, and the tint goes with
+    // them. Moving the pointer again puts it back on whichever run it finds.
+    if (m_pointerActive)
+        releasePointer();
+
     m_writeCamState.reconcile(text);
     updateAlternativeMarks();
     recordTextHistory(beforeText, text);
@@ -874,6 +893,14 @@ void Backend::resetHistory() {
     m_usingAlternativeHistory = false;
     m_applyingAlternative = false;
     m_activeAlternative = -1;
+    const bool hadPointer = m_pointerActive;
+    m_pointerAlternative = -1;
+    m_pointerActive = false;
+    if (hadPointer) {
+        if (m_highlighter)
+            m_highlighter->setPointerSpan({0, 0});
+        emit pointerChanged();
+    }
     if (!m_document)
         return;
     m_history.append(currentSnapshot());
@@ -1244,6 +1271,40 @@ bool Backend::flipAlternative(int direction) {
     if (index < 0)
         index = alternativeIndexAt(m_caretPosition);
     return flipAlternativeByIndex(index, direction);
+}
+
+void Backend::setPointerAlternative(int alternativeIndex) {
+    const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    const bool active = alternativeIndex >= 0 && alternativeIndex < alternatives.size();
+    const int index = active ? alternativeIndex : -1;
+    if (index == m_pointerAlternative && active == m_pointerActive)
+        return;
+
+    m_pointerAlternative = index;
+    m_pointerActive = active;
+    if (m_highlighter) {
+        if (active) {
+            const WriteCamAlternative &alternative = alternatives.at(index);
+            m_highlighter->setPointerSpan({alternative.start, alternative.length});
+        } else {
+            m_highlighter->setPointerSpan({0, 0});
+        }
+    }
+    emit pointerChanged();
+}
+
+void Backend::pointAt(int position) {
+    setPointerAlternative(alternativeIndexAt(position));
+}
+
+void Backend::releasePointer() {
+    setPointerAlternative(-1);
+}
+
+bool Backend::flipPointedAlternative(int direction) {
+    if (!m_pointerActive || m_pointerAlternative < 0 || direction == 0)
+        return false;
+    return flipAlternativeByIndex(m_pointerAlternative, direction);
 }
 
 bool Backend::flipAlternative(int position, int direction) {

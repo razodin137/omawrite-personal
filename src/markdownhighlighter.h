@@ -27,6 +27,10 @@ public:
     // moves with it when the paragraph reflows.
     void setAlternativeSpans(const QList<Span> &spans);
 
+    // The run the pointer is resting on, tinted while the pointer is the last
+    // thing the writer used. An empty span leaves every run its own colour.
+    void setPointerSpan(const Span &span);
+
     enum class InlineKind { Bold, Italic, Strikethrough, Link };
 
     // Carried from block to block so a fenced run of code knows it is inside
@@ -72,6 +76,7 @@ private:
     void rehighlightAll();
     void highlightContent(const QString &text);
     void highlightAlternatives(const QString &text);
+    void highlightPointer(const QString &text);
     void highlightMarkers(const QString &text);
     void highlightInline(const QString &text);
     void highlightSearch(const QString &text);
@@ -93,6 +98,8 @@ private:
     QTextCharFormat m_linkFormat;
     QTextCharFormat m_alternativeFormat;
     QList<Span> m_alternativeSpans;
+    QTextCharFormat m_pointerFormat;
+    Span m_pointerSpan{0, 0};
     QString m_searchQuery;
     int m_currentMatchStart = -1;
     // Moves with edits, so it still finds the block the current match was

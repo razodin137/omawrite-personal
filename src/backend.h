@@ -41,6 +41,8 @@ class Backend : public QObject {
     Q_PROPERTY(QStringList availableFonts READ availableFonts CONSTANT)
     Q_PROPERTY(QVariantList alternatives READ alternativeList NOTIFY alternativesChanged)
     Q_PROPERTY(int activeAlternative READ activeAlternative NOTIFY alternativesChanged)
+    Q_PROPERTY(bool pointerActive READ pointerActive NOTIFY pointerChanged)
+    Q_PROPERTY(int pointerAlternative READ pointerAlternative NOTIFY pointerChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -71,6 +73,10 @@ public:
     QVariantList alternativeList() const;
     QVariantList alternatives() const { return alternativeList(); }
     int activeAlternative() const { return m_activeAlternative; }
+    // The pointer owns the arrow keys while it rests on a run with
+    // alternatives; any typing hands them back to the caret.
+    bool pointerActive() const { return m_pointerActive; }
+    int pointerAlternative() const { return m_pointerAlternative; }
     static QString defaultEditorFont();
     static QStringList selectableFontFamilies(const QStringList &families);
     static AlternativeRange alternativeRange(const QString &body, int start, int end)
@@ -143,6 +149,9 @@ public:
     Q_INVOKABLE bool flipAlternative(int direction);
     Q_INVOKABLE bool flipAlternative(int position, int direction);
     Q_INVOKABLE bool flipAlternativeAt(int position, int direction);
+    Q_INVOKABLE void pointAt(int position);
+    Q_INVOKABLE void releasePointer();
+    Q_INVOKABLE bool flipPointedAlternative(int direction);
     Q_INVOKABLE bool cycleAlternative(int position, int direction);
     Q_INVOKABLE bool nextAlternative(int position);
     Q_INVOKABLE bool previousAlternative(int position);
@@ -181,6 +190,7 @@ signals:
     void externalChangeDetected(bool deleted, bool locallyModified);
     void tagsApplied(const QStringList &tags);
     void alternativesChanged();
+    void pointerChanged();
 
 private:
     friend class WriteCamTest;
@@ -214,6 +224,7 @@ private:
     void restoreSnapshot(const EditSnapshot &snapshot);
     void applyShowingChoices(const QList<WriteCamAlternative> &wanted);
     void updateAlternativeMarks();
+    void setPointerAlternative(int alternativeIndex);
     int alternativeIndexAt(int position) const;
     bool flipAlternativeByIndex(int alternativeIndex, int direction);
     qreal steppedTextZoom(int direction) const;
@@ -297,6 +308,8 @@ private:
     bool m_usingAlternativeHistory = false;
     bool m_applyingAlternative = false;
     int m_activeAlternative = -1;
+    int m_pointerAlternative = -1;
+    bool m_pointerActive = false;
 
     QString m_themeBackground;
     QString m_themeForeground;

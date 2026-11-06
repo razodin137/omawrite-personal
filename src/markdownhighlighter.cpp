@@ -163,6 +163,33 @@ void MarkdownHighlighter::setAlternativeSpans(const QList<Span> &spans) {
         refresh(span);
 }
 
+void MarkdownHighlighter::setPointerSpan(const Span &span) {
+    const Span kept = span.start >= 0 && span.length > 0 ? span : Span{0, 0};
+    if (kept.start == m_pointerSpan.start && kept.length == m_pointerSpan.length)
+        return;
+
+    const Span previous = m_pointerSpan;
+    m_pointerSpan = kept;
+
+    // Only the blocks the run left and entered can lose or gain the tint.
+    const auto refresh = [this](const Span &run) {
+        QTextDocument *doc = document();
+        if (!doc || run.length <= 0)
+            return;
+        const int last = qMax(0, doc->characterCount() - 1);
+        QTextBlock block = doc->findBlock(qBound(0, run.start, last));
+        const QTextBlock end = doc->findBlock(qBound(0, run.start + run.length, last));
+        while (block.isValid()) {
+            rehighlightBlock(block);
+            if (block == end)
+                break;
+            block = block.next();
+        }
+    };
+    refresh(previous);
+    refresh(m_pointerSpan);
+}
+
 void MarkdownHighlighter::rebuildFormats() {
     const QColor marker = m_darkMode ? QColor(QStringLiteral("#4f525a"))
                                      : QColor(QStringLiteral("#aeb1b5"));
@@ -226,6 +253,11 @@ void MarkdownHighlighter::rebuildFormats() {
     m_alternativeFormat.setUnderlineStyle(QTextCharFormat::WaveUnderline);
     m_alternativeFormat.setUnderlineColor(link);
 
+    // The run under the pointer takes the accent as its ink, so the writer can
+    // see which word the arrow keys will flip without the text itself moving.
+    m_pointerFormat = QTextCharFormat();
+    m_pointerFormat.setForeground(link);
+
     m_searchFormat = QTextCharFormat();
     m_searchFormat.setBackground(m_darkMode ? QColor(QStringLiteral("#725b18"))
                                             : QColor(QStringLiteral("#ffe58a")));
@@ -237,6 +269,7 @@ void MarkdownHighlighter::rebuildFormats() {
 void MarkdownHighlighter::highlightBlock(const QString &text) {
     highlightContent(text);
     highlightAlternatives(text);
+    highlightPointer(text);
 }
 
 void MarkdownHighlighter::highlightContent(const QString &text) {
@@ -308,6 +341,21 @@ void MarkdownHighlighter::highlightAlternatives(const QString &text) {
             merged.merge(m_alternativeFormat);
             setFormat(position, 1, merged);
         }
+    }
+}
+
+void MarkdownHighlighter::highlightPointer(const QString &text) {
+    if (m_pointerSpan.length <= 0 || text.isEmpty())
+        return;
+
+    const int blockStart = currentBlock().position();
+    const int blockEnd = blockStart + text.length();
+    const int start = qMax(m_pointerSpan.start, blockStart);
+    const int end = qMin(m_pointerSpan.start + m_pointerSpan.length, blockEnd);
+    for (int position = start - blockStart; position < end - blockStart; ++position) {
+        QTextCharFormat merged = format(position);
+        merged.merge(m_pointerFormat);
+        setFormat(position, 1, merged);
     }
 }
 

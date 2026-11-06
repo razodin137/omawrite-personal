@@ -4171,6 +4171,138 @@ private slots:
         QCOMPARE(underlined(0, 8), 0);
     }
 
+    void flipsThePointedAlternativeWithTheArrowKeys() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> object(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(object.data());
+        QVERIFY(window);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        const QString text = QStringLiteral("A very good line.");
+        editor->setProperty("text", text);
+        QVERIFY(backend.makeAlternative(2, 6));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("quite")));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("really")));
+
+        QMetaObject::invokeMethod(editor, "forceActiveFocus");
+        QTRY_VERIFY(editor->property("activeFocus").toBool());
+        editor->setProperty("cursorPosition", 0);
+
+        const auto pointAt = [editor](int position) {
+            QRectF box;
+            QMetaObject::invokeMethod(editor, "positionToRectangle",
+                                      Q_RETURN_ARG(QRectF, box), Q_ARG(int, position));
+            return QMetaObject::invokeMethod(
+                editor, "pointAt",
+                Q_ARG(QVariant, box.x() + box.width() / 2),
+                Q_ARG(QVariant, box.y() + box.height() / 2));
+        };
+
+        QVERIFY(pointAt(3));
+        QVERIFY(backend.pointerActive());
+
+        // Right and down go forward, left and up go back, and the run wraps at
+        // either end. The caret stays where the writer left it throughout.
+        QTest::keyClick(window, Qt::Key_Right);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("A quite good line."));
+        QTest::keyClick(window, Qt::Key_Down);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("A really good line."));
+        QTest::keyClick(window, Qt::Key_Right);
+        QCOMPARE(editor->property("text").toString(), text);
+        QTest::keyClick(window, Qt::Key_Left);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("A really good line."));
+        QTest::keyClick(window, Qt::Key_Up);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("A quite good line."));
+        QCOMPARE(editor->property("cursorPosition").toInt(), 0);
+    }
+
+    void tintsThePointedRunUntilTypingTakesThePointerBack() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> object(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(object.data());
+        QVERIFY(window);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        editor->setProperty("text", QStringLiteral("A very good line."));
+        QVERIFY(backend.makeAlternative(2, 6));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("quite")));
+        auto *quickDocument = qobject_cast<QQuickTextDocument *>(
+            editor->property("textDocument").value<QObject *>());
+        QVERIFY(quickDocument);
+        QTextDocument *document = quickDocument->textDocument();
+        const auto formatAt = [document](int position) {
+            for (const auto &range : document->firstBlock().layout()->formats()) {
+                if (position >= range.start && position < range.start + range.length)
+                    return range.format;
+            }
+            return QTextCharFormat();
+        };
+
+        QMetaObject::invokeMethod(editor, "forceActiveFocus");
+        QTRY_VERIFY(editor->property("activeFocus").toBool());
+        editor->setProperty("cursorPosition", 0);
+
+        const auto pointAt = [editor](int position) {
+            QRectF box;
+            QMetaObject::invokeMethod(editor, "positionToRectangle",
+                                      Q_RETURN_ARG(QRectF, box), Q_ARG(int, position));
+            return QMetaObject::invokeMethod(
+                editor, "pointAt",
+                Q_ARG(QVariant, box.x() + box.width() / 2),
+                Q_ARG(QVariant, box.y() + box.height() / 2));
+        };
+
+        // While the pointer is the last thing used, the run takes the accent
+        // and the arrow keys flip it.
+        QVERIFY(pointAt(3));
+        const QColor accent(backend.themeAccent());
+        QVERIFY(accent.isValid());
+        for (int position = 2; position < 6; ++position)
+            QCOMPARE(formatAt(position).foreground().color(), accent);
+        for (int position : {0, 1, 6, 7})
+            QVERIFY(formatAt(position).foreground().color() != accent);
+        QTest::keyClick(window, Qt::Key_Right);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("A quite good line."));
+
+        // Typing hands the arrows back to the caret and takes the tint away.
+        QTest::keyClick(window, 'x');
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("xA quite good line."));
+        QVERIFY(!backend.pointerActive());
+        for (int position = 3; position < 8; ++position)
+            QVERIFY(formatAt(position).foreground().color() != accent);
+
+        editor->setProperty("cursorPosition", 2);
+        QTest::keyClick(window, Qt::Key_Right);
+        QCOMPARE(editor->property("cursorPosition").toInt(), 3);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("xA quite good line."));
+
+        // Moving the pointer again puts the run back under the arrow keys.
+        QVERIFY(pointAt(4));
+        QVERIFY(backend.pointerActive());
+        QTest::keyClick(window, Qt::Key_Left);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("xA very good line."));
+    }
+
     void parsesTagSchemas() {
         QString error;
         int stateChars = 0;

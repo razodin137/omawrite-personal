@@ -988,7 +988,16 @@ ApplicationWindow {
 
                     var returnKey = event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
                     var commandModifier = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
-                    if (returnKey && !commandModifier) {
+                    var pointerKey = !commandModifier && !(event.modifiers & Qt.ShiftModifier)
+                        && (event.key === Qt.Key_Left || event.key === Qt.Key_Right
+                            || event.key === Qt.Key_Up || event.key === Qt.Key_Down);
+                    if (pointerKey && backend.pointerActive) {
+                        // Left and up go back; right and down go forward. The
+                        // run wraps at either end, and the caret stays put.
+                        var back = event.key === Qt.Key_Left || event.key === Qt.Key_Up;
+                        backend.flipPointedAlternative(back ? -1 : 1);
+                        event.accepted = true;
+                    } else if (returnKey && !commandModifier) {
                         smartReturn(event.modifiers & Qt.ShiftModifier);
                         event.accepted = true;
                     } else if (!commandModifier && event.key === Qt.Key_Backspace
@@ -1042,7 +1051,7 @@ ApplicationWindow {
                 // positionAt() snaps to the nearest caret, even past the end of a
                 // line, so only count a character the pointer is inside: the one
                 // on either side of that caret, whichever way the text runs.
-                function linkUrlUnder(x, y) {
+                function characterUnder(x, y) {
                     var caret = positionAt(x, y);
                     for (var position = Math.max(0, caret - 1);
                          position <= caret && position < length; ++position) {
@@ -1054,9 +1063,26 @@ ApplicationWindow {
                             ? next.x : box.x + writerFontMetrics.averageCharacterWidth;
                         if (y >= box.y && y < box.y + box.height
                                 && x >= Math.min(box.x, edge) && x < Math.max(box.x, edge))
-                            return backend.linkUrlAt(position);
+                            return position;
                     }
-                    return "";
+                    return -1;
+                }
+
+                function linkUrlUnder(x, y) {
+                    var position = characterUnder(x, y);
+                    return position < 0 ? "" : backend.linkUrlAt(position);
+                }
+
+                function alternativeUnder(x, y) {
+                    var position = characterUnder(x, y);
+                    return position >= 0 && backend.hasAlternativeAt(position)
+                        ? position : -1;
+                }
+
+                // The pointer owns the arrow keys while it rests on a run;
+                // -1 says it rests on none.
+                function pointAt(x, y) {
+                    backend.pointAt(alternativeUnder(x, y));
                 }
 
                 MouseArea {
@@ -1068,8 +1094,12 @@ ApplicationWindow {
                         editor.linkHoverX = mouse.x;
                         editor.linkHoverY = mouse.y;
                         editor.hoveredLinkUrl = editor.linkUrlUnder(mouse.x, mouse.y);
+                        editor.pointAt(mouse.x, mouse.y);
                     }
-                    onExited: editor.hoveredLinkUrl = ""
+                    onExited: {
+                        editor.hoveredLinkUrl = "";
+                        backend.releasePointer();
+                    }
                 }
 
                 ToolTip {
