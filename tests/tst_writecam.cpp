@@ -3,6 +3,7 @@
 #include <QThreadPool>
 #include <QSignalSpy>
 #include <QSemaphore>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QAbstractTextDocumentLayout>
 #include <QTextBlock>
@@ -3805,6 +3806,35 @@ private slots:
         QCOMPARE(custom.first().threshold, 0.8);
     }
 
+    void keepsTheTagSchemaEditable() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("nested/tag-schema.json"));
+
+        // First run writes the embedded schema where the writer can edit it.
+        QString error;
+        int stateChars = 0;
+        QList<TagQuestion> questions = SystemOne::loadSchema(path, &error, &stateChars);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(questions.size(), 4);
+        QCOMPARE(stateChars, 4000);
+        QVERIFY(QFileInfo::exists(path));
+
+        // The next run reads the edited file rather than the embedded copy.
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        file.write(QStringLiteral(
+            "{\"questions\":{\"mood\":{\"type\":\"noul\","
+            "\"instructions\":\"Is this a mood piece?\",\"tag\":\"mood\"}}}").toUtf8());
+        file.close();
+
+        questions = SystemOne::loadSchema(path, &error, &stateChars);
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(questions.size(), 1);
+        QCOMPARE(questions.first().id, QStringLiteral("mood"));
+        QCOMPARE(questions.first().noulTag, QStringLiteral("mood"));
+    }
+
     void buildsDecisionRequests() {
         QString error;
         const QList<TagQuestion> questions = SystemOne::parseSchema(QStringLiteral(
@@ -4052,9 +4082,17 @@ private slots:
         QVERIFY(editor);
         QVERIFY(editor->setProperty("text", QStringLiteral("# Tagged Post\n\nSome body")));
 
+        const auto fileContains = [](const QString &path, const QString &needle) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly | QIODevice::Text)
+                && QString::fromUtf8(file.readAll()).contains(needle);
+        };
+
         // The first save asks once and writes the decisions into the file.
+        // The request runs after the save, so wait for its answer.
         const QString firstPath = directory.filePath(QStringLiteral("tagged.md"));
         backend.saveAs(QUrl::fromLocalFile(firstPath));
+        QTRY_VERIFY(fileContains(firstPath, QStringLiteral("tags: [food, journal]\n")));
         QFile firstFile(firstPath);
         QVERIFY(firstFile.open(QIODevice::ReadOnly | QIODevice::Text));
         const QString firstContents = QString::fromUtf8(firstFile.readAll());
@@ -4075,12 +4113,13 @@ private slots:
         QVERIFY(editor->setProperty("text", edited));
         const QString secondPath = directory.filePath(QStringLiteral("tagged-again.md"));
         backend.saveAs(QUrl::fromLocalFile(secondPath));
+        QTRY_COMPARE(server.requestCount(), 2);
+        QTRY_VERIFY(fileContains(secondPath, QStringLiteral("tags: [food, journal]\n")));
         QFile secondFile(secondPath);
         QVERIFY(secondFile.open(QIODevice::ReadOnly | QIODevice::Text));
         const QString secondContents = QString::fromUtf8(secondFile.readAll());
         QVERIFY(secondContents.contains(QStringLiteral("tags: [food, journal]\n")));
         QCOMPARE(editor->property("text").toString(), secondContents);
-        QCOMPARE(server.requestCount(), 2);
         QVERIFY(!backend.status().contains(QStringLiteral("tags:")));
 
         // A front-matter-only edit leaves the body, so nothing is re-asked.
@@ -4104,6 +4143,60 @@ private slots:
         QVERIFY(fourthContents.contains(QStringLiteral("Plain body")));
         QVERIFY(fourthContents.contains(QStringLiteral("tags: [food, journal]\n")));
         QCOMPARE(server.requestCount(), 2);
+    }
+
+    void taggingNeverHoldsUpASave() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        // A decision server that takes the request and never answers.
+        FakeDecisionServer silent(nullptr);
+        QVERIFY(silent.port() > 0);
+
+        {
+            QSettings settings;
+            settings.setValue(QStringLiteral("tagging/enabled"), true);
+            settings.setValue(QStringLiteral("tagging/endpoint"),
+                              QStringLiteral("http://127.0.0.1:%1/v1/systemone")
+                                  .arg(silent.port()));
+            settings.setValue(QStringLiteral("tagging/model"), QStringLiteral("slow-model"));
+            settings.setValue(QStringLiteral("tagging/timeoutMs"), 500);
+            settings.setValue(QStringLiteral("tagging/schemaPath"),
+                              m_settingsDirectory.filePath(QStringLiteral("tag-schema.json")));
+        }
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+        QVERIFY(editor->setProperty("text", QStringLiteral("# Slow Post\n\nSome body")));
+
+        const QString path = directory.filePath(QStringLiteral("slow.md"));
+        QElapsedTimer elapsed;
+        elapsed.start();
+        backend.saveAs(QUrl::fromLocalFile(path));
+        QVERIFY2(elapsed.elapsed() < 500, qPrintable(QString::number(elapsed.elapsed())));
+        QVERIFY(QFileInfo::exists(path));
+        QTRY_COMPARE(silent.requestCount(), 1);
+
+        // The unanswered request fails soft: no tags, and the file is intact.
+        QTRY_VERIFY_WITH_TIMEOUT(backend.status().contains(QStringLiteral("tagger unreachable")),
+                                 3000);
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString contents = QString::fromUtf8(file.readAll());
+        QVERIFY(contents.contains(QStringLiteral("tags: []\n")));
+        QVERIFY(contents.contains(QStringLiteral("Some body")));
+
+        QSettings().setValue(QStringLiteral("tagging/enabled"), false);
     }
 private:
     // The character formats the highlighter gives a single line of text.

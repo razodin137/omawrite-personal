@@ -125,14 +125,24 @@ signals:
     void saveDialogRequested(const QUrl &suggestedUrl);
     void saveSucceeded();
     void externalChangeDetected(bool deleted, bool locallyModified);
+    void tagsApplied(const QStringList &tags);
 
 private:
     friend class WriteCamTest;
 
+    // A decision from the tagger, collected on a worker thread so a slow or
+    // missing decision server can never hold up the save that asked for it.
+    struct TagDecision {
+        QStringList tags;
+        QString error;
+    };
+
     void loadDocumentText(const QString &text);
     void updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle,
                                  const QStringList &newTags);
-    QStringList decideSaveTags(bool creatingNewFile);
+    void tagDocument();
+    void finishTagRequest();
+    void replaceDocumentText(const QString &from, const QString &to);
     qreal steppedTextZoom(int direction) const;
     void setTextZoom(qreal zoom);
     void setFileUrl(const QUrl &url);
@@ -165,6 +175,12 @@ private:
     QString m_lastTagBodyHash;
     qint64 m_tagSkipUntilMsecs = 0;
     QString m_lastTagNote;
+    QString m_pendingTagState;
+    QString m_pendingTagBodyHash;
+    QUrl m_pendingTagUrl;
+    bool m_tagRequestActive = false;
+    bool m_tagAgain = false;
+    QFutureWatcher<TagDecision> m_tagWatcher;
 
     QUrl m_fileUrl;
     bool m_modified = false;

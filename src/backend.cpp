@@ -281,6 +281,8 @@ Backend::Backend(QObject *parent) : QObject(parent) {
             refreshWordCount();
         }
     });
+    connect(&m_tagWatcher, &QFutureWatcher<TagDecision>::finished,
+            this, &Backend::finishTagRequest);
     m_recoveryTimer.setSingleShot(true);
     m_recoveryTimer.setInterval(750);
     connect(&m_recoveryTimer, &QTimer::timeout, this, &Backend::writeRecovery);
@@ -973,12 +975,11 @@ void Backend::saveTo(const QUrl &url) {
     // A document saved for the first time gets front matter; one that already
     // tracks `updated` gets the save's timestamp appended to its log. The
     // buffer is updated too, so the editor always matches the file on disk.
-    // Decisions are collected first so the tags land in the file the moment
-    // it is written; a missing decision server never blocks the save.
+    // Tags are decided after the file is written, off the save's path.
     const bool creatingNewFile = !m_fileUrl.isValid() || m_fileUrl.isEmpty();
-    const QStringList decidedTags = decideSaveTags(creatingNewFile);
-    updateFrontMatterOnSave(creatingNewFile, QFileInfo(targetName).completeBaseName(),
-                            decidedTags);
+    const bool documentChanged = creatingNewFile || m_modified;
+    m_lastTagNote.clear();
+    updateFrontMatterOnSave(creatingNewFile, QFileInfo(targetName).completeBaseName(), {});
 
     const QByteArray contents = currentDocumentText().toUtf8();
     file.write(contents);
@@ -1010,6 +1011,9 @@ void Backend::saveTo(const QUrl &url) {
     setStatus(status);
     clearRecovery();
     emit saveSucceeded();
+
+    if (documentChanged)
+        tagDocument();
 }
 
 void Backend::scheduleRecovery() {
@@ -1660,24 +1664,22 @@ QString Backend::applyFrontMatterTags(const QString &text, const QStringList &ta
         + QLatin1Char(']') + QLatin1Char('\n') + text.mid(frontMatter.contentEnd);
 }
 
-// Asks the configured decision server for tags covering the document's
-// body. Runs at most once per distinct body: unchanged text keeps the tags
-// it already carries, so manual tag edits survive later saves.
-QStringList Backend::decideSaveTags(bool creatingNewFile) {
-    m_lastTagNote.clear();
-
-    if (!QSettings().value(taggingEnabledSetting, true).toBool())
-        return {};
+// Asks the configured decision server about the body that was just saved.
+// The request runs on a worker thread, so the save has already completed and
+// a slow or missing server never holds it up. Runs at most once per distinct
+// body: unchanged text keeps the tags it already carries, so manual tag edits
+// survive later saves.
+void Backend::tagDocument() {
+    if (!QSettings().value(taggingEnabledSetting, false).toBool())
+        return;
 
     const QString text = currentDocumentText();
-    if (!creatingNewFile && !findFrontMatter(text).found)
-        return {};  // plain files are never modified, so there is nowhere to write
-    if (!m_modified && !creatingNewFile)
-        return {};
+    if (!findFrontMatter(text).found)
+        return;  // plain files are never modified, so there is nowhere to write
 
     const QString body = bodyAfterFrontMatter(text).trimmed();
     if (body.isEmpty())
-        return {};
+        return;
 
     QString error;
     int stateChars = 4000;
@@ -1685,26 +1687,153 @@ QStringList Backend::decideSaveTags(bool creatingNewFile) {
                                                                 &stateChars);
     if (questions.isEmpty()) {
         m_lastTagNote = error;
-        return {};
+        if (m_status.startsWith(QStringLiteral("Saved ")))
+            setStatus(m_status + QStringLiteral(" · ") + m_lastTagNote);
+        return;
     }
 
     const QString state = body.left(stateChars);
     const QString stateHash = QString::fromLatin1(QCryptographicHash::hash(
         state.toUtf8(), QCryptographicHash::Sha256).toHex());
     if (stateHash == m_lastTagBodyHash)
-        return {};  // this body already carries its decisions
+        return;  // this body already carries its decisions
     if (QDateTime::currentMSecsSinceEpoch() < m_tagSkipUntilMsecs)
-        return {};  // a server that just failed gets a couple of minutes' rest
+        return;  // a server that just failed gets a couple of minutes' rest
+    if (m_tagRequestActive) {
+        if (stateHash != m_pendingTagBodyHash)
+            m_tagAgain = true;  // ask again once the request in flight finishes
+        return;
+    }
 
-    const QStringList tags = SystemOne::decideTags(loadDecisionServer(), state, questions,
-                                                   &error);
-    if (!error.isEmpty()) {
+    const DecisionServer server = loadDecisionServer();
+    m_pendingTagState = state;
+    m_pendingTagBodyHash = stateHash;
+    m_pendingTagUrl = m_fileUrl;
+    m_tagRequestActive = true;
+    m_tagWatcher.setFuture(QtConcurrent::run([server, state, questions]() {
+        TagDecision decision;
+        decision.tags = SystemOne::decideTags(server, state, questions, &decision.error);
+        return decision;
+    }));
+}
+
+void Backend::finishTagRequest() {
+    m_tagRequestActive = false;
+    const TagDecision decision = m_tagWatcher.result();
+    const auto askAgainIfNeeded = [this]() {
+        if (!m_tagAgain)
+            return;
+        m_tagAgain = false;
+        if (!m_modified)
+            tagDocument();
+    };
+
+    if (!QSettings().value(taggingEnabledSetting, false).toBool()) {
+        askAgainIfNeeded();
+        return;
+    }
+
+    if (!decision.error.isEmpty()) {
         m_tagSkipUntilMsecs = QDateTime::currentMSecsSinceEpoch() + 120000;
         m_lastTagNote = QStringLiteral("tagger unreachable");
-        return {};
+        if (m_status.startsWith(QStringLiteral("Saved ")))
+            setStatus(m_status + QStringLiteral(" · ") + m_lastTagNote);
+        askAgainIfNeeded();
+        return;
     }
-    m_lastTagBodyHash = stateHash;
-    return tags;
+
+    // A decision for a document that moved on is dropped; the next save asks
+    // again with whatever the writer is looking at now.
+    if (!m_document || m_fileUrl != m_pendingTagUrl || m_modified
+            || !diskMatchesKnownContents()) {
+        askAgainIfNeeded();
+        return;
+    }
+
+    const QString text = currentDocumentText();
+    const QString body = bodyAfterFrontMatter(text).trimmed();
+    if (!body.startsWith(m_pendingTagState)) {
+        m_tagAgain = true;
+        askAgainIfNeeded();
+        return;
+    }
+
+    if (decision.tags.isEmpty()) {
+        m_lastTagBodyHash = m_pendingTagBodyHash;
+        askAgainIfNeeded();
+        return;
+    }
+
+    QStringList added;
+    const QString updated = applyFrontMatterTags(text, decision.tags, &added);
+    if (added.isEmpty()) {
+        m_lastTagBodyHash = m_pendingTagBodyHash;
+        askAgainIfNeeded();
+        return;
+    }
+
+    replaceDocumentText(text, updated);
+    m_lastTagBodyHash = m_pendingTagBodyHash;
+
+    // Write the tags without another `updated` log entry: this is the same
+    // save finishing its optional extra, not a new revision.
+    const QByteArray contents = updated.toUtf8();
+    QSaveFile file(m_fileUrl.toLocalFile());
+    file.setDirectWriteFallback(true);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        file.write(contents);
+        unwatchFiles();
+        if (file.commit()) {
+            setKnownFileContents(contents, true);
+            watchCurrentFile();
+        } else {
+            watchCurrentFile();
+            setModified(true);
+            scheduleAutoSave();
+        }
+    } else {
+        setModified(true);
+        scheduleAutoSave();
+    }
+
+    m_lastTagNote = QStringLiteral("tags: %1").arg(added.join(QStringLiteral(", ")));
+    if (m_status.startsWith(QStringLiteral("Saved ")))
+        setStatus(m_status + QStringLiteral(" · ") + m_lastTagNote);
+    emit tagsApplied(added);
+    askAgainIfNeeded();
+}
+
+// Replaces the document buffer with `to`, applying only the changed span so
+// the writer's caret and scroll position stay put.
+void Backend::replaceDocumentText(const QString &from, const QString &to) {
+    if (!m_document || from == to)
+        return;
+
+    int prefix = 0;
+    while (prefix < from.size() && prefix < to.size() && from.at(prefix) == to.at(prefix))
+        ++prefix;
+    int suffix = 0;
+    while (suffix < from.size() - prefix && suffix < to.size() - prefix
+           && from.at(from.size() - 1 - suffix) == to.at(to.size() - 1 - suffix))
+        ++suffix;
+    const QString replacement = to.mid(prefix, to.size() - prefix - suffix);
+
+    // m_loading keeps the insertion from being reported as a fresh user edit
+    // that would flip the just-saved document back to "Unsaved".
+    m_loading = true;
+    QTextCursor cursor(m_document);
+    cursor.setPosition(prefix);
+    cursor.setPosition(qMin(from.size() - suffix, m_document->characterCount() - 1),
+                       QTextCursor::KeepAnchor);
+    cursor.insertText(replacement);
+    m_loading = false;
+
+    m_lastDocumentText = m_document->toPlainText();
+    m_lastChangePos = prefix;
+    m_lastChangeAdded = replacement.size();
+    reapplyTypographyToChange();
+    m_wordCountTimer.stop();
+    setWordCount(countWords(m_lastDocumentText));
 }
 
 void Backend::updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle,
@@ -1725,34 +1854,7 @@ void Backend::updateFrontMatterOnSave(bool creatingNewFile, const QString &fallb
     if (updated == text)
         return;
 
-    // The change always sits at the head of the document; locate it with a
-    // common prefix/suffix so it is applied in the buffer as one edit too.
-    int prefix = 0;
-    while (prefix < text.size() && prefix < updated.size()
-           && text.at(prefix) == updated.at(prefix))
-        ++prefix;
-    int suffix = 0;
-    while (suffix < text.size() - prefix && suffix < updated.size() - prefix
-           && text.at(text.size() - 1 - suffix) == updated.at(updated.size() - 1 - suffix))
-        ++suffix;
-    const QString replacement = updated.mid(prefix, updated.size() - prefix - suffix);
-
-    // m_loading keeps the insertion from being reported as a fresh user edit
-    // that would flip the just-saved document back to "Unsaved".
-    m_loading = true;
-    QTextCursor cursor(m_document);
-    cursor.setPosition(prefix);
-    cursor.setPosition(qMin(text.size() - suffix, m_document->characterCount() - 1),
-                       QTextCursor::KeepAnchor);
-    cursor.insertText(replacement);
-    m_loading = false;
-
-    m_lastDocumentText = m_document->toPlainText();
-    m_lastChangePos = prefix;
-    m_lastChangeAdded = replacement.size();
-    reapplyTypographyToChange();
-    m_wordCountTimer.stop();
-    setWordCount(countWords(m_lastDocumentText));
+    replaceDocumentText(text, updated);
 }
 
 void Backend::setWordCount(int words) {

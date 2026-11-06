@@ -118,6 +118,20 @@ New documents suggest a filename of the day's date plus a hyphenated slug of the
 heading (or line) — `# My Awesome Day` becomes `2026-10-12-my-awesome-day.md` — unless
 the title already starts with a date.
 
+## Auto-tagging (opt-in)
+
+Auto-tagging is off by default. Turn it on with the `tagging/enabled` setting, then
+point `tagging/endpoint` at a local decision server that speaks the System One
+`/v1/systemone` request and response shape (`tagging/model` and `tagging/apiKey` are
+optional). The tagger runs after the file is written, on a worker thread, so a slow
+or missing server never holds up a save; when it cannot answer, the file is left
+exactly as saved.
+
+The tag schema is read from `tag-schema.json` beside WriteCam's settings, and the
+embedded default is written there on first use so it can be edited. Each decision at
+or above its question's threshold adds that question's tag to the front matter's
+`tags` list, keeping every tag the writer already listed.
+
 The font button in the footer picks the writing font from any installed text font,
 and WriteCam remembers the choice. IBM Plex Mono is the default.
 
