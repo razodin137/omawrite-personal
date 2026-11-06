@@ -27,6 +27,7 @@
 #include <functional>
 #include "cli.h"
 
+#include "alternativetone.h"
 #include "backend.h"
 #include "markdownhighlighter.h"
 #include "systemone.h"
@@ -4048,6 +4049,76 @@ private slots:
         backend.redo();
         QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
                  AlternativeScope::Sentence);
+    }
+
+    void rendersFlipTonesInCode() {
+        const QByteArray higher = AlternativeTone::pcm(AlternativeTone::Kind::Higher);
+        const QByteArray lower = AlternativeTone::pcm(AlternativeTone::Kind::Lower);
+
+        const int frameBytes = AlternativeTone::channels * AlternativeTone::bitsPerSample / 8;
+        const int expectedBytes = AlternativeTone::sampleRate
+            * AlternativeTone::durationMsecs / 1000 * frameBytes;
+        QCOMPARE(higher.size(), expectedBytes);
+        QCOMPARE(lower.size(), expectedBytes);
+
+        const auto crossings = [](const QByteArray &pcm) {
+            const auto *data = reinterpret_cast<const qint16 *>(pcm.constData());
+            const int count = int(pcm.size() / sizeof(qint16));
+            int crossings = 0;
+            for (int i = 1; i < count; ++i) {
+                if ((data[i - 1] < 0) != (data[i] < 0))
+                    ++crossings;
+            }
+            return crossings;
+        };
+        const auto peak = [](const QByteArray &pcm) {
+            const auto *data = reinterpret_cast<const qint16 *>(pcm.constData());
+            const int count = int(pcm.size() / sizeof(qint16));
+            int peak = 0;
+            for (int i = 0; i < count; ++i)
+                peak = qMax(peak, qAbs(int(data[i])));
+            return peak;
+        };
+
+        QVERIFY(crossings(higher) > crossings(lower));
+        QVERIFY(peak(higher) > 0);
+        QVERIFY(peak(lower) > 0);
+        QVERIFY(peak(higher) < int(0.08 * 32767));
+        QVERIFY(peak(lower) < int(0.08 * 32767));
+    }
+
+    void flippingVersionsAsksForHigherAndLowerTones() {
+        Backend backend;
+        QQuickTextDocument *quickDocument = attachTextEdit(&backend);
+        QVERIFY(quickDocument);
+        QTextDocument *document = quickDocument->textDocument();
+        document->setPlainText(QStringLiteral("A very good line."));
+        backend.resetHistory();
+        QVERIFY(backend.makeAlternative(2, 6));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("excellent")));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("fine")));
+
+        QSignalSpy tones(&backend, &Backend::alternativeFlipped);
+        QVERIFY(tones.isValid());
+
+        QVERIFY(backend.flipAlternative(3, 1));
+        QCOMPARE(tones.count(), 1);
+        QCOMPARE(tones.last().at(0).toBool(), false);
+
+        QVERIFY(backend.flipAlternative(3, 1));
+        QCOMPARE(tones.count(), 2);
+        QCOMPARE(tones.last().at(0).toBool(), false);
+
+        QVERIFY(backend.flipAlternative(3, -1));
+        QCOMPARE(tones.count(), 3);
+        QCOMPARE(tones.last().at(0).toBool(), false);
+
+        QVERIFY(backend.flipAlternative(3, -1));
+        QCOMPARE(tones.count(), 4);
+        QCOMPARE(tones.last().at(0).toBool(), true);
+
+        QVERIFY(!backend.flipAlternative(100, 1));
+        QCOMPARE(tones.count(), 4);
     }
 
     void whichVersionShowsIsNotAnUndoStep() {

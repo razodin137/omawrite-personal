@@ -190,6 +190,7 @@ signals:
     void externalChangeDetected(bool deleted, bool locallyModified);
     void tagsApplied(const QStringList &tags);
     void alternativesChanged();
+    void alternativeFlipped(bool landedOnOriginal);
     void pointerChanged();
 
 private:

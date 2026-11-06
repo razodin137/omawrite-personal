@@ -13,6 +13,7 @@
 #include "backend.h"
 #include "cli.h"
 #include "systemtheme.h"
+#include "toneplayer.h"
 
 #define WRITECAM_VERSION "0.7.2"
 
@@ -45,6 +46,9 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle(QStringLiteral("Material"));
 
     Backend backend(&app);
+    TonePlayer tonePlayer(&app);
+    QObject::connect(&backend, &Backend::alternativeFlipped,
+                     &tonePlayer, &TonePlayer::playForFlip);
     SystemTheme systemTheme(&app);
     backend.setDarkMode(systemTheme.darkMode());
     QObject::connect(&systemTheme, &SystemTheme::darkModeChanged, &backend,

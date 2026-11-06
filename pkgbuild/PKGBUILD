@@ -6,8 +6,8 @@ arch=('x86_64' 'aarch64')
 url='https://github.com/razodin137/omawrite-personal'
 license=('MIT' 'OFL-1.1')
 install='writecam.install'
-depends=('qt6-base' 'qt6-declarative' 'xdg-desktop-portal')
-makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative')
+depends=('qt6-base' 'qt6-declarative' 'qt6-multimedia' 'xdg-desktop-portal')
+makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative' 'qt6-multimedia')
 source=()
 sha256sums=()
 

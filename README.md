@@ -43,7 +43,7 @@ paru -S writecam-git
 If you are running another Linux distribution (Ubuntu, Fedora, Debian) or prefer to run without installing system-wide:
 
 1. Install the required dependencies:
-   - Qt 6 development libraries (`qt6-base`, `qt6-declarative`, `qt6-quickcontrols2`)
+   - Qt 6 development libraries (`qt6-base`, `qt6-declarative`, `qt6-multimedia`, `qt6-quickcontrols2`)
    - `xdg-desktop-portal`
    - C++ compiler (`gcc` or `clang`) and `make` / `qmake6`
 2. Build and run from the checkout:
@@ -145,7 +145,7 @@ WriteCam at the size it is designed around; larger and smaller sizes scale from 
 
 ## Requirements
 
-- Qt 6: `qt6-base` and `qt6-declarative` (which includes Qt Quick Controls)
+- Qt 6: `qt6-base`, `qt6-declarative` (which includes Qt Quick Controls), and `qt6-multimedia`
 - `xdg-desktop-portal` and a portal backend
 
 The IBM Plex Mono font is bundled under the SIL Open Font License 1.1; see

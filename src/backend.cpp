@@ -1263,6 +1263,7 @@ bool Backend::flipAlternativeByIndex(int alternativeIndex, int direction) {
     m_activeAlternative = alternativeIndex;
     updateCurrentSnapshot();
     emit alternativesChanged();
+    emit alternativeFlipped(showing == 0);
     return true;
 }
 
