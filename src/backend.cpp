@@ -401,6 +401,9 @@ void Backend::attachDocument(QObject *textDocument) {
     m_highlighter->setTheme(m_darkMode, m_themeBackground, m_themeForeground, m_themeAccent,
                             m_themeCodeBackground);
     m_highlighter->setCaret(m_caretPosition);
+    updateAlternativeMarks();
+
+    connect(this, &Backend::alternativesChanged, this, &Backend::updateAlternativeMarks);
 
     connect(m_document, &QTextDocument::contentsChange, this,
             [this](int position, int, int charsAdded) {
@@ -414,6 +417,20 @@ void Backend::attachDocument(QObject *textDocument) {
     restoreRecovery();
     if (m_history.isEmpty())
         resetHistory();
+}
+
+void Backend::updateAlternativeMarks() {
+    if (!m_highlighter)
+        return;
+
+    QList<MarkdownHighlighter::Span> spans;
+    const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    spans.reserve(alternatives.size());
+    for (const WriteCamAlternative &alternative : alternatives) {
+        if (alternative.length > 0)
+            spans.append(MarkdownHighlighter::Span{alternative.start, alternative.length});
+    }
+    m_highlighter->setAlternativeSpans(spans);
 }
 
 void Backend::openDialog() {
@@ -506,6 +523,7 @@ void Backend::openOrStartFile(const QUrl &requestedUrl) {
 
     loadDocumentText(QString());
     m_writeCamState = {};
+    updateAlternativeMarks();
     resetHistory();
     clearRecovery();
     // Nothing has been read, so no text counts as saved, and auto-save holds
@@ -657,6 +675,7 @@ bool Backend::editorTextChanged() {
     }
 
     m_writeCamState.reconcile(text);
+    updateAlternativeMarks();
     recordTextHistory(beforeText, text);
     scheduleWordCount();
     updateDirtyStateForText(text);
@@ -1535,6 +1554,7 @@ void Backend::saveTo(const QUrl &url) {
     // in the one trailing comment, and nothing is appended when there are none.
     const QString body = currentDocumentText();
     m_writeCamState.reconcile(body);
+    updateAlternativeMarks();
     const QByteArray contents = WriteCamState::withComment(body, m_writeCamState).toUtf8();
     file.write(contents);
 
@@ -2350,6 +2370,7 @@ void Backend::finishTagRequest() {
     // alternatives comment that the save itself wrote.
     const QString savedBody = currentDocumentText();
     m_writeCamState.reconcile(savedBody);
+    updateAlternativeMarks();
     const QByteArray contents = WriteCamState::withComment(savedBody, m_writeCamState).toUtf8();
     QSaveFile file(m_fileUrl.toLocalFile());
     file.setDirectWriteFallback(true);

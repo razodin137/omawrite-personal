@@ -120,6 +120,49 @@ void MarkdownHighlighter::setCaret(int position) {
     rehighlightBlock(entered);
 }
 
+void MarkdownHighlighter::setAlternativeSpans(const QList<Span> &spans) {
+    QList<Span> kept;
+    for (const Span &span : spans) {
+        if (span.start >= 0 && span.length > 0)
+            kept.append(span);
+    }
+    std::sort(kept.begin(), kept.end(), [](const Span &left, const Span &right) {
+        return left.start < right.start;
+    });
+
+    bool same = kept.size() == m_alternativeSpans.size();
+    for (int index = 0; same && index < kept.size(); ++index) {
+        same = kept.at(index).start == m_alternativeSpans.at(index).start
+            && kept.at(index).length == m_alternativeSpans.at(index).length;
+    }
+    if (same)
+        return;
+
+    const QList<Span> previous = m_alternativeSpans;
+    m_alternativeSpans = kept;
+
+    // The line only lives on the blocks the runs touch, so restyle those and
+    // leave the rest of the page alone.
+    const auto refresh = [this](const Span &span) {
+        QTextDocument *doc = document();
+        if (!doc)
+            return;
+        const int last = qMax(0, doc->characterCount() - 1);
+        QTextBlock block = doc->findBlock(qBound(0, span.start, last));
+        const QTextBlock end = doc->findBlock(qBound(0, span.start + span.length, last));
+        while (block.isValid()) {
+            rehighlightBlock(block);
+            if (block == end)
+                break;
+            block = block.next();
+        }
+    };
+    for (const Span &span : previous)
+        refresh(span);
+    for (const Span &span : kept)
+        refresh(span);
+}
+
 void MarkdownHighlighter::rebuildFormats() {
     const QColor marker = m_darkMode ? QColor(QStringLiteral("#4f525a"))
                                      : QColor(QStringLiteral("#aeb1b5"));
@@ -176,6 +219,13 @@ void MarkdownHighlighter::rebuildFormats() {
     m_linkFormat.setForeground(link);
     m_linkFormat.setFontUnderline(true);
 
+    // An editor's pen: a slightly uneven wave, not a ruled border. It is
+    // painted under the glyphs as character formatting, so it follows the
+    // words when they wrap.
+    m_alternativeFormat = QTextCharFormat();
+    m_alternativeFormat.setUnderlineStyle(QTextCharFormat::WaveUnderline);
+    m_alternativeFormat.setUnderlineColor(link);
+
     m_searchFormat = QTextCharFormat();
     m_searchFormat.setBackground(m_darkMode ? QColor(QStringLiteral("#725b18"))
                                             : QColor(QStringLiteral("#ffe58a")));
@@ -185,6 +235,11 @@ void MarkdownHighlighter::rebuildFormats() {
 }
 
 void MarkdownHighlighter::highlightBlock(const QString &text) {
+    highlightContent(text);
+    highlightAlternatives(text);
+}
+
+void MarkdownHighlighter::highlightContent(const QString &text) {
     // Front matter only counts when the document opens with a delimiter that
     // is closed later; otherwise a leading thematic break would dim the whole
     // document. It is rendered as muted metadata rather than Markdown.
@@ -235,6 +290,25 @@ void MarkdownHighlighter::highlightBlock(const QString &text) {
         }
     }
     highlightSearch(text);
+}
+
+void MarkdownHighlighter::highlightAlternatives(const QString &text) {
+    if (m_alternativeSpans.isEmpty() || text.isEmpty())
+        return;
+
+    const int blockStart = currentBlock().position();
+    const int blockEnd = blockStart + text.length();
+    for (const Span &span : m_alternativeSpans) {
+        const int start = qMax(span.start, blockStart);
+        const int end = qMin(span.start + span.length, blockEnd);
+        if (start >= end)
+            continue;
+        for (int position = start - blockStart; position < end - blockStart; ++position) {
+            QTextCharFormat merged = format(position);
+            merged.merge(m_alternativeFormat);
+            setFormat(position, 1, merged);
+        }
+    }
 }
 
 bool MarkdownHighlighter::frontMatterCloses() const {

@@ -4126,6 +4126,51 @@ private slots:
         QCOMPARE(editor->property("text").toString(), QStringLiteral("A very good line."));
     }
 
+    void underlinesAlternativeRunsWithAWavyPenLine() {
+        Backend backend;
+        QQuickTextDocument *quickDocument = attachTextEdit(&backend);
+        QVERIFY(quickDocument);
+        QTextDocument *document = quickDocument->textDocument();
+        const QString text = QStringLiteral("A very good line.");
+        backend.loadDocumentText(text);
+
+        QVERIFY(backend.makeAlternative(2, 6));
+        const auto formatAt = [document](int position) {
+            for (const auto &range : document->firstBlock().layout()->formats()) {
+                if (position >= range.start && position < range.start + range.length)
+                    return range.format;
+            }
+            return QTextCharFormat();
+        };
+
+        // The pen line sits under the run, not under the words beside it.
+        for (int position = 2; position < 6; ++position)
+            QCOMPARE(formatAt(position).underlineStyle(), QTextCharFormat::WaveUnderline);
+        for (int position : {0, 1, 6, 7})
+            QCOMPARE(formatAt(position).underlineStyle(), QTextCharFormat::NoUnderline);
+
+        // The line is drawn under the text, not written into it.
+        QCOMPARE(document->toPlainText(), text);
+
+        // It moves with the words, including when they wrap and when text
+        // above the run pushes them along.
+        QTextCursor cursor(document);
+        cursor.setPosition(0);
+        cursor.insertText(QStringLiteral("Well, "));
+        QVERIFY(backend.editorTextChanged());
+        document->setTextWidth(70);
+        const auto underlined = [document](int from, int to) {
+            int count = 0;
+            for (const auto &range : document->firstBlock().layout()->formats()) {
+                if (range.format.underlineStyle() == QTextCharFormat::WaveUnderline)
+                    count += qMax(0, qMin(to, range.start + range.length) - qMax(from, range.start));
+            }
+            return count;
+        };
+        QCOMPARE(underlined(8, 12), 4);
+        QCOMPARE(underlined(0, 8), 0);
+    }
+
     void parsesTagSchemas() {
         QString error;
         int stateChars = 0;

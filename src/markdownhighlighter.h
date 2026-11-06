@@ -22,6 +22,11 @@ public:
         int length;
     };
 
+    // Runs that have alternatives, in document positions. Each gets a wavy
+    // pen line under its words; the text itself is left alone, so the line
+    // moves with it when the paragraph reflows.
+    void setAlternativeSpans(const QList<Span> &spans);
+
     enum class InlineKind { Bold, Italic, Strikethrough, Link };
 
     // Carried from block to block so a fenced run of code knows it is inside
@@ -65,6 +70,8 @@ protected:
 private:
     void rebuildFormats();
     void rehighlightAll();
+    void highlightContent(const QString &text);
+    void highlightAlternatives(const QString &text);
     void highlightMarkers(const QString &text);
     void highlightInline(const QString &text);
     void highlightSearch(const QString &text);
@@ -84,6 +91,8 @@ private:
     QTextCharFormat m_fenceFormat;
     QTextCharFormat m_quoteFormat;
     QTextCharFormat m_linkFormat;
+    QTextCharFormat m_alternativeFormat;
+    QList<Span> m_alternativeSpans;
     QString m_searchQuery;
     int m_currentMatchStart = -1;
     // Moves with edits, so it still finds the block the current match was

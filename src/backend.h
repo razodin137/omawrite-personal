@@ -213,6 +213,7 @@ private:
     void refreshCurrentSnapshot();
     void restoreSnapshot(const EditSnapshot &snapshot);
     void applyShowingChoices(const QList<WriteCamAlternative> &wanted);
+    void updateAlternativeMarks();
     int alternativeIndexAt(int position) const;
     bool flipAlternativeByIndex(int alternativeIndex, int direction);
     qreal steppedTextZoom(int direction) const;
