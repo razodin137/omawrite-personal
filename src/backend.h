@@ -41,6 +41,10 @@ class Backend : public QObject {
     Q_PROPERTY(QStringList availableFonts READ availableFonts CONSTANT)
     Q_PROPERTY(QVariantList alternatives READ alternativeList NOTIFY alternativesChanged)
     Q_PROPERTY(int activeAlternative READ activeAlternative NOTIFY alternativesChanged)
+    Q_PROPERTY(QStringList activeAlternativeVersions READ activeAlternativeVersions
+               NOTIFY alternativesChanged)
+    Q_PROPERTY(int activeAlternativeShowing READ activeAlternativeShowing
+               NOTIFY alternativesChanged)
     Q_PROPERTY(bool pointerActive READ pointerActive NOTIFY pointerChanged)
     Q_PROPERTY(int pointerAlternative READ pointerAlternative NOTIFY pointerChanged)
 
@@ -73,6 +77,8 @@ public:
     QVariantList alternativeList() const;
     QVariantList alternatives() const { return alternativeList(); }
     int activeAlternative() const { return m_activeAlternative; }
+    QStringList activeAlternativeVersions() const;
+    int activeAlternativeShowing() const;
     // The pointer owns the arrow keys while it rests on a run with
     // alternatives; any typing hands them back to the caret.
     bool pointerActive() const { return m_pointerActive; }
@@ -165,8 +171,19 @@ public:
     Q_INVOKABLE bool showAlternativeVersion(int alternativeIndex, int versionIndex);
     Q_INVOKABLE bool addAlternativeVersion(const QString &version);
     Q_INVOKABLE bool addAlternativeVersion(int alternativeIndex, const QString &version);
+    Q_INVOKABLE bool setAlternativeVersion(int versionIndex, const QString &version);
+    Q_INVOKABLE bool setAlternativeVersion(int alternativeIndex, int versionIndex,
+                                           const QString &version);
+    Q_INVOKABLE bool setAlternativeVersionText(int versionIndex, const QString &version);
+    Q_INVOKABLE bool setAlternativeVersionText(int alternativeIndex, int versionIndex,
+                                               const QString &version);
+    Q_INVOKABLE bool renameAlternativeVersion(int versionIndex, const QString &version);
+    Q_INVOKABLE bool renameAlternativeVersion(int alternativeIndex, int versionIndex,
+                                              const QString &version);
     Q_INVOKABLE bool removeAlternativeVersion(int versionIndex);
     Q_INVOKABLE bool removeAlternativeVersion(int alternativeIndex, int versionIndex);
+    Q_INVOKABLE bool setActiveAlternative(int index);
+    Q_INVOKABLE bool activateAlternativeAt(int position);
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     Q_INVOKABLE bool insideFence(int position) const;

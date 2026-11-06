@@ -1094,6 +1094,20 @@ QVariantList Backend::alternativeList() const {
     return rows;
 }
 
+QStringList Backend::activeAlternativeVersions() const {
+    const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (m_activeAlternative < 0 || m_activeAlternative >= alternatives.size())
+        return {};
+    return alternatives.at(m_activeAlternative).versions;
+}
+
+int Backend::activeAlternativeShowing() const {
+    const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (m_activeAlternative < 0 || m_activeAlternative >= alternatives.size())
+        return -1;
+    return alternatives.at(m_activeAlternative).showing;
+}
+
 int Backend::alternativeIndexAt(int position) const {
     const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
     for (int index = 0; index < alternatives.size(); ++index) {
@@ -1114,6 +1128,21 @@ QVariantMap Backend::alternativeAt(int position) const {
 
 bool Backend::hasAlternativeAt(int position) const {
     return alternativeIndexAt(position) >= 0;
+}
+
+bool Backend::setActiveAlternative(int index) {
+    const int count = int(m_writeCamState.alternatives().size());
+    if (index < -1 || index >= count)
+        return false;
+    if (index == m_activeAlternative)
+        return true;
+    m_activeAlternative = index;
+    emit alternativesChanged();
+    return true;
+}
+
+bool Backend::activateAlternativeAt(int position) {
+    return setActiveAlternative(alternativeIndexAt(position));
 }
 
 bool Backend::makeAlternative() {
@@ -1401,6 +1430,65 @@ bool Backend::addAlternativeVersion(int alternativeIndex, const QString &version
     commitAlternativeChange(before);
     emit alternativesChanged();
     return true;
+}
+
+bool Backend::setAlternativeVersion(int versionIndex, const QString &version) {
+    int index = m_activeAlternative;
+    if (index < 0)
+        index = alternativeIndexAt(m_caretPosition);
+    return setAlternativeVersion(index, versionIndex, version);
+}
+
+bool Backend::setAlternativeVersion(int alternativeIndex, int versionIndex,
+                                    const QString &version) {
+    if (!m_document || version.isEmpty())
+        return false;
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (alternativeIndex < 0 || alternativeIndex >= alternatives.size())
+        return false;
+    WriteCamAlternative &alternative = alternatives[alternativeIndex];
+    if (versionIndex < 0 || versionIndex >= alternative.versions.size())
+        return false;
+    if (alternative.versions.at(versionIndex) == version
+            || alternative.versions.contains(version))
+        return false;
+
+    const EditSnapshot before = currentSnapshot();
+    const bool wasShowing = versionIndex == alternative.showing;
+    alternative.versions[versionIndex] = version;
+
+    if (wasShowing) {
+        const int start = alternative.start;
+        m_applyingAlternative = true;
+        replaceRange(start, start + alternative.length, version);
+        m_applyingAlternative = false;
+        m_lastDocumentText = currentDocumentText();
+        alternative.start = start;
+        alternative.length = version.size();
+    }
+
+    m_activeAlternative = alternativeIndex;
+    commitAlternativeChange(before);
+    emit alternativesChanged();
+    return true;
+}
+
+bool Backend::setAlternativeVersionText(int versionIndex, const QString &version) {
+    return setAlternativeVersion(versionIndex, version);
+}
+
+bool Backend::setAlternativeVersionText(int alternativeIndex, int versionIndex,
+                                        const QString &version) {
+    return setAlternativeVersion(alternativeIndex, versionIndex, version);
+}
+
+bool Backend::renameAlternativeVersion(int versionIndex, const QString &version) {
+    return setAlternativeVersion(versionIndex, version);
+}
+
+bool Backend::renameAlternativeVersion(int alternativeIndex, int versionIndex,
+                                       const QString &version) {
+    return setAlternativeVersion(alternativeIndex, versionIndex, version);
 }
 
 bool Backend::removeAlternativeVersion(int versionIndex) {

@@ -4374,6 +4374,257 @@ private slots:
         QCOMPARE(editor->property("text").toString(), QStringLiteral("xA very good line."));
     }
 
+    void editsAlternativeVersionsInThePanel() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        backend.discardRecovery();
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> object(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(object.data());
+        QVERIFY(window);
+        window->setProperty("width", 1280);
+        window->setProperty("height", 820);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+        editor->setProperty("text", QStringLiteral("A very good line."));
+        QVERIFY(backend.makeAlternative(2, 6));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("quite")));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("really")));
+
+        QObject *panel = window->findChild<QObject *>(QStringLiteral("alternativesPanel"));
+        QVERIFY(panel);
+        QTRY_VERIFY(panel->property("visible").toBool());
+        QTRY_COMPARE(panel->property("count").toInt(), 3);
+        QCOMPARE(panel->property("showing").toInt(), 0);
+        QCOMPARE(panel->property("rowCount").toInt(), 4);
+
+        QObject *repeater = panel->findChild<QObject *>(
+            QStringLiteral("alternativeVersionRepeater"));
+        QVERIFY(repeater);
+
+        const auto rowFor = [repeater](int versionIndex) -> QObject * {
+            QQuickItem *row = nullptr;
+            if (!QMetaObject::invokeMethod(repeater, "itemAt",
+                                           Q_RETURN_ARG(QQuickItem *, row),
+                                           Q_ARG(int, versionIndex)))
+                return nullptr;
+            return row;
+        };
+
+        // One row per version, and only the showing one carries the mark.
+        for (int index = 0; index < 3; ++index)
+            QVERIFY(rowFor(index));
+        int marked = 0;
+        for (int index = 0; index < 3; ++index) {
+            QObject *row = rowFor(index);
+            QVERIFY(row);
+            if (row->property("showingVersion").toBool())
+                ++marked;
+        }
+        QCOMPARE(marked, 1);
+        QObject *showingRow = rowFor(0);
+        QVERIFY(showingRow);
+        QVERIFY(showingRow->property("showingVersion").toBool());
+        QObject *mark = showingRow->findChild<QObject *>(
+            QStringLiteral("alternativeShowingMark"));
+        QVERIFY(mark);
+        QCOMPARE(mark->property("text").toString(), QStringLiteral("✓"));
+
+        // Choosing a row shows that version in the page.
+        QVERIFY(QMetaObject::invokeMethod(panel, "chooseVersion", Q_ARG(QVariant, 2)));
+        QCOMPARE(editor->property("text").toString(),
+                 QStringLiteral("A really good line."));
+        QTRY_COMPARE(panel->property("showing").toInt(), 2);
+        QVERIFY(rowFor(2)->property("showingVersion").toBool());
+        QVERIFY(!rowFor(0)->property("showingVersion").toBool());
+
+        // Editing a row renames its version, and the page follows when the
+        // edited row is the one showing.
+        QObject *showingField = rowFor(2)->findChild<QObject *>(
+            QStringLiteral("alternativeVersionField"));
+        QVERIFY(showingField);
+        QMetaObject::invokeMethod(showingField, "forceActiveFocus");
+        QTRY_VERIFY(showingField->property("activeFocus").toBool());
+        QMetaObject::invokeMethod(showingField, "selectAll");
+        const QString renamed = QStringLiteral("truly");
+        for (const QChar letter : renamed)
+            QTest::keyClick(window, letter.unicode());
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(backend.m_writeCamState.alternatives().first().versions.at(2),
+                     QStringLiteral("truly"));
+        QCOMPARE(editor->property("text").toString(),
+                 QStringLiteral("A truly good line."));
+
+        // Typing in the empty row adds a version.
+        QObject *emptyField = panel->findChild<QObject *>(
+            QStringLiteral("alternativeVersionInput"));
+        QVERIFY(emptyField);
+        QMetaObject::invokeMethod(emptyField, "forceActiveFocus");
+        QTRY_VERIFY(emptyField->property("activeFocus").toBool());
+        const QString newVersion = QStringLiteral("fine");
+        for (const QChar letter : newVersion)
+            QTest::keyClick(window, letter.unicode());
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(backend.m_writeCamState.alternatives().first().versions.size(), 4);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().versions.last(),
+                 QStringLiteral("fine"));
+        QTRY_COMPARE(panel->property("count").toInt(), 4);
+
+        // Emptying a row removes its version; the page keeps the showing one.
+        QObject *lastRow = rowFor(3);
+        QVERIFY(lastRow);
+        QObject *lastField = lastRow->findChild<QObject *>(
+            QStringLiteral("alternativeVersionField"));
+        QVERIFY(lastField);
+        QMetaObject::invokeMethod(lastField, "forceActiveFocus");
+        QTRY_VERIFY(lastField->property("activeFocus").toBool());
+        QMetaObject::invokeMethod(lastField, "selectAll");
+        QTest::keyClick(window, Qt::Key_Backspace);
+        QTest::keyClick(window, Qt::Key_Return);
+        QTRY_COMPARE(backend.m_writeCamState.alternatives().first().versions.size(), 3);
+        QCOMPARE(editor->property("text").toString(),
+                 QStringLiteral("A truly good line."));
+
+        // The last version has nowhere to go: emptying it puts it back.
+        QVERIFY(backend.removeAlternativeVersion(2));
+        QVERIFY(backend.removeAlternativeVersion(1));
+        QTRY_COMPARE(panel->property("count").toInt(), 1);
+        QObject *onlyRow = rowFor(0);
+        QVERIFY(onlyRow);
+        QObject *onlyField = onlyRow->findChild<QObject *>(
+            QStringLiteral("alternativeVersionField"));
+        QVERIFY(onlyField);
+        QMetaObject::invokeMethod(onlyField, "forceActiveFocus");
+        QTRY_VERIFY(onlyField->property("activeFocus").toBool());
+        QMetaObject::invokeMethod(onlyField, "selectAll");
+        QTest::keyClick(window, Qt::Key_Backspace);
+        QTest::keyClick(window, Qt::Key_Return);
+        QTest::qWait(50);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().versions.size(), 1);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().versions.first(),
+                 QStringLiteral("very"));
+        QCOMPARE(onlyField->property("text").toString(), QStringLiteral("very"));
+    }
+
+    void movesThroughThePanelRowsWithoutWrapping() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        backend.discardRecovery();
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> object(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(object.data());
+        QVERIFY(window);
+        window->setProperty("width", 1280);
+        window->setProperty("height", 820);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+        editor->setProperty("text", QStringLiteral("A very good line."));
+        QVERIFY(backend.makeAlternative(2, 6));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("quite")));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("really")));
+
+        QObject *panel = window->findChild<QObject *>(QStringLiteral("alternativesPanel"));
+        QVERIFY(panel);
+        QTRY_VERIFY(panel->property("visible").toBool());
+        QTRY_COMPARE(panel->property("count").toInt(), 3);
+
+        QObject *repeater = panel->findChild<QObject *>(
+            QStringLiteral("alternativeVersionRepeater"));
+        QVERIFY(repeater);
+        const auto rowFor = [repeater](int index) -> QObject * {
+            QQuickItem *row = nullptr;
+            if (!QMetaObject::invokeMethod(repeater, "itemAt",
+                                           Q_RETURN_ARG(QQuickItem *, row),
+                                           Q_ARG(int, index)))
+                return nullptr;
+            return row;
+        };
+
+        // Down walks versions 0, 1, 2 and then the empty row, and stops there.
+        QVERIFY(QMetaObject::invokeMethod(panel, "focusRow", Q_ARG(QVariant, 0)));
+        QCOMPARE(panel->property("currentIndex").toInt(), 0);
+        QObject *firstField = rowFor(0)->findChild<QObject *>(
+            QStringLiteral("alternativeVersionField"));
+        QVERIFY(firstField);
+        QTRY_VERIFY(firstField->property("activeFocus").toBool());
+        for (int index = 1; index <= 3; ++index) {
+            QTest::keyClick(window, Qt::Key_Down);
+            QCOMPARE(panel->property("currentIndex").toInt(), index);
+        }
+        QTest::keyClick(window, Qt::Key_Down);
+        QCOMPARE(panel->property("currentIndex").toInt(), 3);
+
+        // Up walks back and stops at the first version rather than wrapping.
+        for (int index = 2; index >= 0; --index) {
+            QTest::keyClick(window, Qt::Key_Up);
+            QCOMPARE(panel->property("currentIndex").toInt(), index);
+        }
+        QTest::keyClick(window, Qt::Key_Up);
+        QCOMPARE(panel->property("currentIndex").toInt(), 0);
+    }
+
+    void keepsTheAlternativesPanelOutOfTheWritingColumn() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        backend.discardRecovery();
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> object(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(object.data());
+        QVERIFY(window);
+        window->setProperty("width", 1280);
+        window->setProperty("height", 820);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QObject *panel = window->findChild<QObject *>(QStringLiteral("alternativesPanel"));
+        QVERIFY(editor);
+        QVERIFY(panel);
+        editor->setProperty("text", QStringLiteral("A very good line."));
+        QVERIFY(backend.makeAlternative(2, 6));
+        QTRY_VERIFY(panel->property("visible").toBool());
+
+        auto *editorItem = qobject_cast<QQuickItem *>(editor);
+        auto *panelItem = qobject_cast<QQuickItem *>(panel);
+        QVERIFY(editorItem);
+        QVERIFY(panelItem);
+        const auto panelClearsThePage = [editorItem, panelItem]() {
+            const QPointF editorRight = editorItem->mapToScene(
+                QPointF(editorItem->width(), 0));
+            const QPointF panelLeft = panelItem->mapToScene(QPointF(0, 0));
+            return panelLeft.x() >= editorRight.x();
+        };
+
+        QVERIFY(panelClearsThePage());
+        for (const int width : {720, 640}) {
+            window->setProperty("width", width);
+            QCoreApplication::processEvents();
+            QTRY_VERIFY(panel->property("visible").toBool());
+            QVERIFY(panelClearsThePage());
+        }
+    }
+
     void parsesTagSchemas() {
         QString error;
         int stateChars = 0;

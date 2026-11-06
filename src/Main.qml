@@ -28,12 +28,22 @@ ApplicationWindow {
     readonly property real textScale: backend.textScale
     readonly property int editorFontPixelSize: scaledSize(20)
     readonly property int footerHeight: scaledSize(32)
+    // The panel sits in its own strip at the right edge, and the page gives
+    // it that room rather than letting the two overlap.
+    readonly property int alternativesPanelWidth: Math.round(Math.min(
+        Math.max(scaledSize(180), width * 0.22),
+        scaledSize(260),
+        width * 0.32))
+    readonly property var activeAlternativeVersions: backend.activeAlternativeVersions
+    readonly property int activeAlternativeShowing: backend.activeAlternativeShowing
+    readonly property bool alternativesPanelVisible: activeAlternativeVersions.length > 0
+        && width >= 640
     // Never wider than the Flickable's viewport, whatever the floor asks for:
     // a tiling compositor can resize the window below its minimum width.
     readonly property int editorWidth: Math.min(
         Math.round(writerFontMetrics.averageCharacterWidth * 65),
-        Math.max(360, width - Math.round(writerFontMetrics.averageCharacterWidth * 20)),
-        Math.max(0, width - 48))
+        Math.max(360, editorFlick.width - Math.round(writerFontMetrics.averageCharacterWidth * 20)),
+        Math.max(0, editorFlick.width - 48))
     property bool closeConfirmed: false
     property bool searchOpen: false
     property bool searchUpdating: false
@@ -409,7 +419,8 @@ ApplicationWindow {
             objectName: "editorScroll"
             anchors.fill: parent
             anchors.leftMargin: 24
-            anchors.rightMargin: 24
+            anchors.rightMargin: 24 + (win.alternativesPanelVisible
+                                       ? win.alternativesPanelWidth + 16 : 0)
             // Inset the scrolling area by the footer strip at both ends, so
             // scrolled text never runs under the footer buttons, status, or
             // word count, and stops just as far short of the top edge.
@@ -662,7 +673,11 @@ ApplicationWindow {
                     color: win.textColor
                 }
                 onCursorRectangleChanged: editorFlick.ensureCursorVisible()
-                onCursorPositionChanged: backend.setCaretPosition(cursorPosition)
+                onCursorPositionChanged: {
+                    backend.setCaretPosition(cursorPosition);
+                    if (backend.hasAlternativeAt(cursorPosition))
+                        backend.setActiveAlternative(backend.alternativeAt(cursorPosition).index);
+                }
                 onFontChanged: backend.documentFontChanged()
 
                 // One edit command, so a single undo takes the change back.
@@ -1095,6 +1110,8 @@ ApplicationWindow {
                         editor.linkHoverY = mouse.y;
                         editor.hoveredLinkUrl = editor.linkUrlUnder(mouse.x, mouse.y);
                         editor.pointAt(mouse.x, mouse.y);
+                        if (backend.pointerAlternative >= 0)
+                            backend.setActiveAlternative(backend.pointerAlternative);
                     }
                     onExited: {
                         editor.hoveredLinkUrl = "";
@@ -1124,6 +1141,31 @@ ApplicationWindow {
                     forceActiveFocus();
                 }
             }
+        }
+
+        AlternativesPanel {
+            id: alternativesPanel
+            objectName: "alternativesPanel"
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.topMargin: win.footerHeight + win.scaledSize(16)
+            anchors.bottomMargin: win.footerHeight + win.scaledSize(16)
+            anchors.rightMargin: 24
+            width: win.alternativesPanelWidth
+            visible: win.alternativesPanelVisible
+            versions: win.activeAlternativeVersions
+            showing: win.activeAlternativeShowing
+            darkMode: win.darkMode
+            textScale: win.textScale
+            textColor: win.textColor
+            mutedColor: win.mutedColor
+            accentColor: backend.themeAccent
+
+            onVersionChosen: function(index) { backend.showAlternativeVersion(index); }
+            onVersionAdded: function(text) { backend.addAlternativeVersion(text); }
+            onVersionEdited: function(index, text) { backend.setAlternativeVersion(index, text); }
+            onVersionRemoved: function(index) { backend.removeAlternativeVersion(index); }
         }
 
         Row {
