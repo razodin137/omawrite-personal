@@ -3555,6 +3555,36 @@ private slots:
                                  "    - 2026-10-12 14:23\n---\n"));
     }
 
+    void keepsEveryFrontMatterFieldAsWritten() {
+        const QDateTime now(QDate(2026, 10, 12), QTime(14, 23));
+        const QString original = QStringLiteral(
+            "---\ndate: 2020-03-04\ntitle: \"A: colon story\"\ndraft: false\n"
+            "layout: post\ncategories:\n  - notes\n  - personal\n"
+            "tags: [alpha, \"two words\"]\nmeta:\n  word_count: 42\n---\n\n# Body\n");
+        const QString logged = QStringLiteral(
+            "---\ndate: 2020-03-04\nupdated:\n  - 2026-10-12 14:23\n"
+            "title: \"A: colon story\"\ndraft: false\n"
+            "layout: post\ncategories:\n  - notes\n  - personal\n"
+            "tags: [alpha, \"two words\"]\nmeta:\n  word_count: 42\n---\n\n# Body\n");
+
+        // Starting the log touches no other field, including quoting,
+        // indentation, block lists and nested keys.
+        QCOMPARE(Backend::applyFrontMatter(original, false, true,
+                                           QStringLiteral("fallback"), now),
+                 logged);
+
+        // Once the log exists, a later save only appends to it.
+        const QDateTime later(QDate(2026, 10, 12), QTime(16, 45));
+        const QString appended = QStringLiteral(
+            "---\ndate: 2020-03-04\nupdated:\n  - 2026-10-12 14:23\n"
+            "  - 2026-10-12 16:45\ntitle: \"A: colon story\"\ndraft: false\n"
+            "layout: post\ncategories:\n  - notes\n  - personal\n"
+            "tags: [alpha, \"two words\"]\nmeta:\n  word_count: 42\n---\n\n# Body\n");
+        QCOMPARE(Backend::applyFrontMatter(logged, false, true,
+                                           QStringLiteral("fallback"), later),
+                 appended);
+    }
+
     void derivesTitlesFromTheFirstContent() {
         QCOMPARE(Backend::derivedTitle(QStringLiteral("# My Post\n\nBody"),
                                         QStringLiteral("fallback")),
