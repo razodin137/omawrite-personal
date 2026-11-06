@@ -86,13 +86,15 @@ is never auto-saved over its file — save it to keep it.
 
 Saving a document for the first time writes YAML front matter at the top of the file —
 the creation `date`, an empty `updated` log, the `title` taken from the first heading
-(or line) of the document, `draft: true`, and empty `categories` and `tags` lists:
+(or line) of the document, a hyphenated `slug` of that title, `draft: true`, and empty
+`categories` and `tags` lists:
 
 ```yaml
 ---
 date: 2026-10-12
 updated: []
 title: My new post
+slug: my-new-post
 draft: true
 categories: []
 tags: []
@@ -110,7 +112,7 @@ updated:
 ```
 
 Front matter that already exists keeps every field exactly as written — WriteCam only
-maintains the log. A file whose front matter doesn't track `updated` has the log
+maintains the log, and never adds a `slug` to a file that was already saved. A file whose front matter doesn't track `updated` has the log
 started (right after its `date` line) on the first edited save; plain files without
 front matter are never modified.
 

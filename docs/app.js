@@ -86,6 +86,7 @@
         `date: ${today}`,
         "updated: []",
         `title: ${JSON.stringify(title)}`,
+        `slug: ${JSON.stringify(slugify(title) || 'untitled')}`,
         "draft: true",
         "categories: []",
         "tags: []",

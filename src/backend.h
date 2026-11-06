@@ -85,6 +85,7 @@ public:
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);
     static QString suggestedFileName(const QString &text, const QDate &today);
+    static QString slugForTitle(const QString &title);
     static QString yamlScalar(const QString &value);
     static QString derivedTitle(const QString &text, const QString &fallback);
     static QString frontMatterText(const QString &title, const QDate &date);

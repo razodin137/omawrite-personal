@@ -3468,19 +3468,32 @@ private slots:
                      QStringLiteral("# Hello World\n\nBody"), true, true,
                      QStringLiteral("fallback"), now),
                  QStringLiteral("---\ndate: 2026-10-12\nupdated: []\n"
-                                "title: Hello World\ndraft: true\ncategories: []\n"
-                                "tags: []\n---\n\n# Hello World\n\nBody"));
+                                "title: Hello World\nslug: hello-world\ndraft: true\n"
+                                "categories: []\ntags: []\n---\n\n# Hello World\n\nBody"));
         QCOMPARE(Backend::applyFrontMatter(QString(), true, false,
                                            QStringLiteral("fallback"), now),
                  QStringLiteral("---\ndate: 2026-10-12\nupdated: []\n"
-                                "title: fallback\ndraft: true\ncategories: []\n"
-                                "tags: []\n---\n"));
+                                "title: fallback\nslug: fallback\ndraft: true\n"
+                                "categories: []\ntags: []\n---\n"));
         QCOMPARE(Backend::applyFrontMatter(
                      QStringLiteral("\n\nPlain first line"), true, true,
                      QStringLiteral("fallback"), now),
                  QStringLiteral("---\ndate: 2026-10-12\nupdated: []\n"
-                                "title: Plain first line\ndraft: true\ncategories: []\n"
-                                "tags: []\n---\n\nPlain first line"));
+                                "title: Plain first line\nslug: plain-first-line\n"
+                                "draft: true\ncategories: []\ntags: []\n---\n\n"
+                                "Plain first line"));
+    }
+
+    void slugsTitlesForFrontMatter() {
+        QCOMPARE(Backend::slugForTitle(QStringLiteral("Hello World")),
+                 QStringLiteral("hello-world"));
+        QCOMPARE(Backend::slugForTitle(QStringLiteral("  A: colon story!  ")),
+                 QStringLiteral("a-colon-story"));
+        QCOMPARE(Backend::slugForTitle(QStringLiteral("Café déjà vu")),
+                 QStringLiteral("café-déjà-vu"));
+        QCOMPARE(Backend::slugForTitle(QStringLiteral("---")),
+                 QStringLiteral("untitled"));
+        QCOMPARE(Backend::slugForTitle(QString()), QStringLiteral("untitled"));
     }
 
     void leavesDocumentsWithoutFrontMatterAlone() {
@@ -3645,8 +3658,9 @@ private slots:
         QVERIFY(firstFile.open(QIODevice::ReadOnly | QIODevice::Text));
         const QString firstContents = QString::fromUtf8(firstFile.readAll());
         const QString expectedFrontMatter = QStringLiteral(
-            "---\ndate: %1\nupdated: []\ntitle: My New Post\ndraft: true\n"
-            "categories: []\ntags: []\n---\n\n").arg(QDate::currentDate().toString(Qt::ISODate));
+            "---\ndate: %1\nupdated: []\ntitle: My New Post\nslug: my-new-post\n"
+            "draft: true\ncategories: []\ntags: []\n---\n\n")
+                                        .arg(QDate::currentDate().toString(Qt::ISODate));
         QVERIFY2(firstContents.startsWith(expectedFrontMatter),
                  qPrintable(firstContents));
         QVERIFY(firstContents.endsWith(QStringLiteral("# My New Post\n\nSome body")));

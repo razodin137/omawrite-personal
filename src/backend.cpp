@@ -1966,7 +1966,17 @@ QString Backend::suggestedFileName(const QString &text, const QDate &today) {
 
     // The day's date plus a hyphenated slug of the title, unless the title
     // already carries a date of its own.
-    QString slug = name.toLower();
+    QString slug = slugForTitle(name);
+    static const QRegularExpression alreadyDated(QStringLiteral("^\\d{4}-\\d{2}-\\d{2}(?:-|$)"));
+    if (!alreadyDated.match(slug).hasMatch())
+        slug.prepend(today.toString(Qt::ISODate) + QLatin1Char('-'));
+    if (!slug.endsWith(QStringLiteral(".md")))
+        slug += QStringLiteral(".md");
+    return slug;
+}
+
+QString Backend::slugForTitle(const QString &title) {
+    QString slug = title.toLower();
     static const QRegularExpression nonSlugChars(QStringLiteral("[^\\p{L}\\p{N}]+"));
     slug.replace(nonSlugChars, QStringLiteral("-"));
     static const QRegularExpression edgeHyphens(QStringLiteral("^-+|-+$"));
@@ -1974,11 +1984,6 @@ QString Backend::suggestedFileName(const QString &text, const QDate &today) {
     slug = slug.left(120);
     if (slug.isEmpty())
         slug = QStringLiteral("untitled");
-    static const QRegularExpression alreadyDated(QStringLiteral("^\\d{4}-\\d{2}-\\d{2}(?:-|$)"));
-    if (!alreadyDated.match(slug).hasMatch())
-        slug.prepend(today.toString(Qt::ISODate) + QLatin1Char('-'));
-    if (!slug.endsWith(QStringLiteral(".md")))
-        slug += QStringLiteral(".md");
     return slug;
 }
 
@@ -2019,6 +2024,7 @@ QString Backend::frontMatterText(const QString &title, const QDate &date) {
         + QStringLiteral("date: ") + date.toString(Qt::ISODate) + QStringLiteral("\n")
         + QStringLiteral("updated: []\n")
         + QStringLiteral("title: ") + yamlScalar(title) + QStringLiteral("\n")
+        + QStringLiteral("slug: ") + yamlScalar(slugForTitle(title)) + QStringLiteral("\n")
         + QStringLiteral("draft: true\n")
         + QStringLiteral("categories: []\n")
         + QStringLiteral("tags: []\n")
