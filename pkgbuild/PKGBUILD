@@ -1,10 +1,10 @@
 pkgname=writecam
-pkgver=0.1.0
-pkgrel=3
+pkgver=0.7.2
+pkgrel=1
 pkgdesc='Dead-simple Markdown writing app with YAML front matter, built with Qt Quick'
-arch=('x86_64')
+arch=('x86_64' 'aarch64')
 url='https://github.com/razodin137/omawrite-personal'
-license=('MIT')
+license=('MIT' 'OFL-1.1')
 install='writecam.install'
 depends=('qt6-base' 'qt6-declarative' 'xdg-desktop-portal')
 makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative')

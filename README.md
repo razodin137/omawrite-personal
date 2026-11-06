@@ -52,6 +52,11 @@ If you are running another Linux distribution (Ubuntu, Fedora, Debian) or prefer
    ./build/writecam
    ```
 
+## Command line
+
+`writecam` opens an empty document and `writecam FILE` opens a Markdown file.
+`writecam --help` and `writecam --version` answer in the terminal without opening a window.
+
 ## Shortcuts
 
 - `Ctrl+S` saves. Unsaved documents use the XDG desktop portal file picker.
@@ -63,11 +68,21 @@ If you are running another Linux distribution (Ubuntu, Fedora, Debian) or prefer
 - `Super+F` toggles fullscreen. Qt maps this key as `Meta+F`.
 - `Ctrl+F` searches the document. Use `Enter` or `Ctrl+G` for the next match and `Shift+Enter` for the previous match.
 - `Ctrl+H` opens find and replace.
-- `Ctrl+B`, `Ctrl+I`, and `Ctrl+K` insert bold, italic, and link Markdown.
-- `Ctrl+?` shows the keyboard shortcut reference.
+- `Ctrl+B`, `Ctrl+I`, and `Ctrl+Shift+X` toggle bold, italic, and strikethrough Markdown. `Ctrl+K` inserts a link.
+- `Ctrl+=` and `Ctrl+-` change the text size, `Ctrl+0` returns to the default.
+  `Ctrl+scroll` does the same.
+- `Ctrl+Shift+C` copies the rendered document as HTML, with plain text as a fallback.
+- `Ctrl+?`, `Ctrl+/`, or `F1` shows the keyboard shortcut reference.
+- In the unsaved-changes dialog, `Alt+C`, `Alt+D`, and `Alt+S` choose Cancel,
+  Discard, and Save.
 
-Unsaved drafts are recovered after an abnormal exit. WriteCam also watches open files
-and warns before an external change can replace local work.
+Once a document has been saved to a file, edits are auto-saved to that file a
+moment after you stop typing, so `Ctrl+S` is rarely needed. Untitled drafts are
+never auto-saved — they wait for an explicit save so WriteCam never picks a file
+name for you. Unsaved drafts are recovered after an abnormal exit. WriteCam also
+watches open files and warns before an external change can replace local work;
+auto-save pauses until you reload, keep your version, or save. A recovered draft
+is never auto-saved over its file — save it to keep it.
 
 Saving a document for the first time writes YAML front matter at the top of the file —
 the creation `date`, an empty `updated` log, the `title` taken from the first heading
@@ -109,11 +124,48 @@ and WriteCam remembers the choice. IBM Plex Mono is the default.
 Text follows the desktop text size — `omarchy display text size`, or GNOME's
 `text-scaling-factor` — and re-flows without a restart. The default of 12px leaves
 WriteCam at the size it is designed around; larger and smaller sizes scale from there.
+`Ctrl+=`, `Ctrl+-`, and `Ctrl+scroll` set your own size on top of that, from 50% to
+300% in browser-sized steps. It is remembered for the next window you open.
 
 ## Requirements
 
-- Qt 6: `qt6-base`, `qt6-declarative`, `qt6-quickcontrols2`
+- Qt 6: `qt6-base` and `qt6-declarative` (which includes Qt Quick Controls)
 - `xdg-desktop-portal` and a portal backend
 
 The IBM Plex Mono font is bundled under the SIL Open Font License 1.1; see
 `fonts/OFL.txt`. The font is copyright IBM Corp.
+
+## Build and install
+
+For a local build, install the Qt requirements above, a C++17 compiler such as
+`gcc`, and `make`. The build scripts use `qmake6` (or `qmake`), and the tests use
+QtTest; both ship in `qt6-base`.
+
+```sh
+./bin/build
+./bin/test
+./build/writecam
+```
+
+`bin/test` runs the Qt test suite with the offscreen platform, so it does not
+require an active graphical session. To open a file with the local build:
+
+```sh
+./build/writecam path/to/document.md
+```
+
+On Arch Linux or Omarchy, install `base-devel` for the packaging tools, then
+build and install the package:
+
+```sh
+./bin/install
+```
+
+This runs the local build and `makepkg -fsi`, which installs the package through
+pacman and may ask for authentication. To build a package archive for inspection
+without installing it:
+
+```sh
+cd pkgbuild
+makepkg -f
+```

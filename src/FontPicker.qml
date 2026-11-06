@@ -44,7 +44,7 @@ Popup {
     modal: false
     focus: true
     padding: 8
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
     Material.elevation: 8
 
     onAboutToShow: {
