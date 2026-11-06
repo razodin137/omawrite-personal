@@ -20,6 +20,8 @@
 #include <QClipboard>
 #include <QMimeData>
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <functional>
@@ -3745,6 +3747,222 @@ private slots:
                      .match(resaved)
                      .hasMatch(),
                  qPrintable(resaved));
+    }
+
+    void keepsAlternativesAndGhostsInATrailingComment() {
+        const QString body = QStringLiteral(
+            "# A post\n\nAn excellent line stays.\n\nA faded line stays.\n");
+
+        WriteCamState state;
+        WriteCamAlternative alternative;
+        alternative.versions = {QStringLiteral("very good"), QStringLiteral("excellent")};
+        alternative.showing = 1;
+        state.alternatives().append(alternative);
+        WriteCamGhost ghost;
+        ghost.text = QStringLiteral("faded line");
+        state.ghosts().append(ghost);
+
+        const QString fileText = WriteCamState::withComment(body, state);
+        QVERIFY(fileText.startsWith(body));
+        QVERIFY(fileText.indexOf(QStringLiteral("<!-- writecam")) >= body.size());
+        QVERIFY(fileText.trimmed().endsWith(QStringLiteral("-->")));
+
+        QString parsedBody;
+        const WriteCamState parsed = WriteCamState::fromFileText(fileText, &parsedBody);
+        QCOMPARE(parsedBody, body);
+        QCOMPARE(parsed.alternatives().size(), 1);
+        QCOMPARE(parsed.alternatives().first().versions,
+                 QStringList({QStringLiteral("very good"), QStringLiteral("excellent")}));
+        QCOMPARE(parsed.alternatives().first().showing, 1);
+        QCOMPARE(parsed.alternatives().first().start,
+                 int(body.indexOf(QStringLiteral("excellent"))));
+        QCOMPARE(parsed.ghosts().size(), 1);
+        QCOMPARE(parsed.ghosts().first().text, QStringLiteral("faded line"));
+        QCOMPARE(parsed.ghosts().first().start,
+                 int(body.indexOf(QStringLiteral("faded line"))));
+    }
+
+    void writesNoCommentWhenThereIsNothingToKeep() {
+        const QString body = QStringLiteral("# Plain post\n\nOnly the words.\n");
+        QCOMPARE(WriteCamState::withComment(body, WriteCamState()), body);
+
+        WriteCamState stale;
+        WriteCamAlternative alternative;
+        alternative.versions = {QStringLiteral("a phrase that left")};
+        stale.alternatives().append(alternative);
+        WriteCamGhost ghost;
+        ghost.text = QStringLiteral("a ghost that left");
+        stale.ghosts().append(ghost);
+        QCOMPARE(WriteCamState::withComment(body, stale), body);
+
+        // An empty state comment from elsewhere is removed on the next save.
+        const QString emptyComment = body
+            + QStringLiteral("<!-- writecam\n{\"version\":1,\"alternatives\":[],"
+                             "\"ghosted\":[]}\n-->\n");
+        QString parsedBody;
+        const WriteCamState parsed = WriteCamState::fromFileText(emptyComment, &parsedBody);
+        QCOMPARE(parsedBody, body);
+        QVERIFY(parsed.isEmpty());
+        QCOMPARE(WriteCamState::withComment(parsedBody, parsed), body);
+    }
+
+    void keepsAlternativesWhoseWordsSurvivedAnOutsideEdit() {
+        const QString body = QStringLiteral(
+            "# Edited elsewhere\n\nA very good idea stays.\n\nA faded line stays.\n");
+        const QJsonObject state{
+            {QStringLiteral("version"), 1},
+            {QStringLiteral("alternatives"),
+             QJsonArray{
+                 QJsonObject{{QStringLiteral("versions"),
+                              QJsonArray{QStringLiteral("very good"),
+                                         QStringLiteral("excellent")}},
+                             {QStringLiteral("showing"), 1}},
+                 QJsonObject{{QStringLiteral("versions"),
+                              QJsonArray{QStringLiteral("vanished phrase")}},
+                             {QStringLiteral("showing"), 0}},
+             }},
+            {QStringLiteral("ghosted"),
+             QJsonArray{
+                 QJsonObject{{QStringLiteral("text"), QStringLiteral("faded line")}},
+                 QJsonObject{{QStringLiteral("text"), QStringLiteral("missing ghost")}},
+             }},
+        };
+        const QString fileText = body + QStringLiteral("<!-- writecam\n")
+            + QString::fromUtf8(QJsonDocument(state).toJson(QJsonDocument::Compact))
+            + QStringLiteral("\n-->\n");
+
+        QString parsedBody;
+        const WriteCamState parsed = WriteCamState::fromFileText(fileText, &parsedBody);
+        QCOMPARE(parsedBody, body);
+
+        // The stored version was `excellent`, but the file now shows the first
+        // wording; the words that remain decide what lives on.
+        QCOMPARE(parsed.alternatives().size(), 1);
+        QCOMPARE(parsed.alternatives().first().showing, 0);
+        QCOMPARE(parsed.alternatives().first().start,
+                 int(body.indexOf(QStringLiteral("very good"))));
+        QCOMPARE(parsed.ghosts().size(), 1);
+        QCOMPARE(parsed.ghosts().first().text, QStringLiteral("faded line"));
+    }
+
+    void opensAndSavesAlternativesThroughTheEditor() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        const QString body = QStringLiteral("# Kept\n\nAn excellent line stays.\n");
+        WriteCamState original;
+        WriteCamAlternative alternative;
+        alternative.versions = {QStringLiteral("very good"), QStringLiteral("excellent")};
+        alternative.showing = 1;
+        original.alternatives().append(alternative);
+        const QString path = directory.filePath(QStringLiteral("post.md"));
+        writeFile(path, WriteCamState::withComment(body, original).toUtf8());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        backend.open(QUrl::fromLocalFile(path));
+        QCOMPARE(editor->property("text").toString(), body);
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+
+        const QString savedPath = directory.filePath(QStringLiteral("post-saved.md"));
+        backend.saveAs(QUrl::fromLocalFile(savedPath));
+        const QString saved = QString::fromUtf8(readFile(savedPath));
+        QCOMPARE(saved.count(QStringLiteral("<!-- writecam")), 1);
+        QVERIFY(saved.startsWith(body));
+
+        // The saved comment still opens as the same alternative.
+        QString reopenedBody;
+        const WriteCamState reopened = WriteCamState::fromFileText(saved, &reopenedBody);
+        QCOMPARE(reopenedBody, body);
+        QCOMPARE(reopened.alternatives().size(), 1);
+        QCOMPARE(reopened.alternatives().first().showing, 1);
+    }
+
+    void dropsAlternativesGoneFromTheFileOnReload() {
+        const QString originalBody = QStringLiteral(
+            "# Kept\n\nAn old phrase stays.\n");
+        WriteCamState original;
+        WriteCamAlternative alternative;
+        alternative.versions = {QStringLiteral("old phrase")};
+        original.alternatives().append(alternative);
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("post.md"));
+        writeFile(path, WriteCamState::withComment(originalBody, original).toUtf8());
+
+        Backend backend;
+        QVERIFY(attachTextEdit(&backend));
+        backend.open(QUrl::fromLocalFile(path));
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+
+        // Outside WriteCam, the anchored words are replaced while the comment
+        // is left in place. Reloading keeps only what still exists.
+        const QString editedBody = QStringLiteral(
+            "# Kept\n\nA new phrase stays.\n");
+        writeFile(path, WriteCamState::withComment(editedBody, original).toUtf8());
+        backend.open(QUrl::fromLocalFile(path));
+        QVERIFY(backend.m_writeCamState.isEmpty());
+
+        backend.save();
+        const QString saved = QString::fromUtf8(readFile(path));
+        QCOMPARE(saved, editedBody);
+        QVERIFY(!saved.contains(QStringLiteral("<!-- writecam")));
+    }
+
+    void savesPlainFilesWithoutAWriteCamComment() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString body = QStringLiteral("# Plain\n\nOnly the article.\n");
+        const QString path = directory.filePath(QStringLiteral("plain.md"));
+        writeFile(path, body.toUtf8());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        backend.open(QUrl::fromLocalFile(path));
+        QCOMPARE(editor->property("text").toString(), body);
+
+        const QString savedPath = directory.filePath(QStringLiteral("plain-saved.md"));
+        backend.saveAs(QUrl::fromLocalFile(savedPath));
+        QCOMPARE(QString::fromUtf8(readFile(savedPath)), body);
+    }
+
+    void roundTripsABodyWithoutATrailingNewline() {
+        const QString body = QStringLiteral("A very good line");
+        WriteCamState state;
+        WriteCamAlternative alternative;
+        alternative.versions = {QStringLiteral("very good"), QStringLiteral("fine")};
+        alternative.showing = 0;
+        state.alternatives().append(alternative);
+
+        const QString fileText = WriteCamState::withComment(body, state);
+        QString parsedBody;
+        const WriteCamState parsed = WriteCamState::fromFileText(fileText, &parsedBody);
+        QCOMPARE(parsedBody, body);
+        QCOMPARE(parsed.alternatives().size(), 1);
+        QCOMPARE(WriteCamState::withComment(parsedBody, parsed), fileText);
     }
 
     void parsesTagSchemas() {

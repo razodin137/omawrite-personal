@@ -436,7 +436,9 @@ void Backend::open(const QUrl &url) {
     file.setTextModeEnabled(true);
     file.seek(0);
     const QByteArray contents = file.readAll();
-    loadDocumentText(QString::fromUtf8(contents));
+    QString body;
+    m_writeCamState = WriteCamState::fromFileText(QString::fromUtf8(contents), &body);
+    loadDocumentText(body);
     clearRecovery();
     setKnownFileContents(contents, true);
     m_autoSaveSuspended = false;
@@ -500,6 +502,7 @@ void Backend::openOrStartFile(const QUrl &requestedUrl) {
     }
 
     loadDocumentText(QString());
+    m_writeCamState = {};
     clearRecovery();
     // Nothing has been read, so no text counts as saved, and auto-save holds
     // off until an explicit save creates the file (see autoSave()).
@@ -981,7 +984,11 @@ void Backend::saveTo(const QUrl &url) {
     m_lastTagNote.clear();
     updateFrontMatterOnSave(creatingNewFile, QFileInfo(targetName).completeBaseName(), {});
 
-    const QByteArray contents = currentDocumentText().toUtf8();
+    // The editor holds the piece itself; the alternatives and ghosts follow it
+    // in the one trailing comment, and nothing is appended when there are none.
+    const QString body = currentDocumentText();
+    m_writeCamState.reconcile(body);
+    const QByteArray contents = WriteCamState::withComment(body, m_writeCamState).toUtf8();
     file.write(contents);
 
     // QSaveFile commits by replacing the target. Stop watching the old inode
@@ -1096,8 +1103,10 @@ void Backend::setKnownFileContents(const QByteArray &contents, bool known) {
     m_lastKnownFileContents = contents;
     m_hasKnownFileContents = known;
     // Every caller reads in text mode or writes plain line endings, so there
-    // are no carriage returns to strip.
-    m_lastKnownFileText = known ? QString::fromUtf8(contents) : QString();
+    // are no carriage returns to strip. The baseline is the piece itself, so
+    // the trailing writecam comment never counts as an unsaved edit.
+    m_lastKnownFileText = known
+        ? WriteCamState::bodyOf(QString::fromUtf8(contents)) : QString();
 }
 
 void Backend::writeRecovery() {
@@ -1110,8 +1119,13 @@ void Backend::writeRecovery() {
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return;
-    const QJsonObject recovery{{QStringLiteral("fileUrl"), m_fileUrl.toString()},
-                               {QStringLiteral("text"), currentDocumentText()}};
+    const QString text = currentDocumentText();
+    WriteCamState state = m_writeCamState;
+    state.reconcile(text);
+    QJsonObject recovery{{QStringLiteral("fileUrl"), m_fileUrl.toString()},
+                         {QStringLiteral("text"), text}};
+    if (!state.isEmpty())
+        recovery.insert(QStringLiteral("writecam"), state.toJson());
     file.write(QJsonDocument(recovery).toJson(QJsonDocument::Compact));
     file.commit();
 }
@@ -1127,7 +1141,10 @@ void Backend::restoreRecovery() {
         return;
     }
     const QJsonObject recovery = json.object();
-    loadDocumentText(recovery.value(QStringLiteral("text")).toString());
+    const QString text = recovery.value(QStringLiteral("text")).toString();
+    m_writeCamState = WriteCamState::fromJson(
+        recovery.value(QStringLiteral("writecam")).toObject(), text);
+    loadDocumentText(text);
     const QUrl recoveredUrl(recovery.value(QStringLiteral("fileUrl")).toString());
     QFile diskFile(recoveredUrl.toLocalFile());
     if (recoveredUrl.isLocalFile() && diskFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -1776,8 +1793,11 @@ void Backend::finishTagRequest() {
     m_lastTagBodyHash = m_pendingTagBodyHash;
 
     // Write the tags without another `updated` log entry: this is the same
-    // save finishing its optional extra, not a new revision.
-    const QByteArray contents = updated.toUtf8();
+    // save finishing its optional extra, not a new revision. Keep the
+    // alternatives comment that the save itself wrote.
+    const QString savedBody = currentDocumentText();
+    m_writeCamState.reconcile(savedBody);
+    const QByteArray contents = WriteCamState::withComment(savedBody, m_writeCamState).toUtf8();
     QSaveFile file(m_fileUrl.toLocalFile());
     file.setDirectWriteFallback(true);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {

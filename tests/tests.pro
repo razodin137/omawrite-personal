@@ -9,12 +9,14 @@ SOURCES += \
     ../src/backend.cpp \
     ../src/cli.cpp \
     ../src/markdownhighlighter.cpp \
-    ../src/systemone.cpp
+    ../src/systemone.cpp \
+    ../src/writecamstate.cpp
 HEADERS += \
     ../src/backend.h \
     ../src/cli.h \
     ../src/markdownhighlighter.h \
-    ../src/systemone.h
+    ../src/systemone.h \
+    ../src/writecamstate.h
 
 RESOURCES += ../src/resources.qrc
 

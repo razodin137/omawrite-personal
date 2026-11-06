@@ -14,6 +14,8 @@
 #include <QVariantList>
 #include <memory>
 
+#include "writecamstate.h"
+
 class MarkdownHighlighter;
 class QFont;
 class QTextDocument;
@@ -218,6 +220,7 @@ private:
     bool m_autoSaveHeld = false;
     QString m_recoveryPath;
     std::unique_ptr<QLockFile> m_recoveryLock;
+    WriteCamState m_writeCamState;
 
     QString m_themeBackground;
     QString m_themeForeground;
