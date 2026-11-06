@@ -66,6 +66,8 @@ public:
     static QString yamlScalar(const QString &value);
     static QString derivedTitle(const QString &text, const QString &fallback);
     static QString frontMatterText(const QString &title, const QDate &date);
+    static QString applyFrontMatter(const QString &text, bool creatingNewFile, bool modified,
+                                    const QString &fallbackTitle, const QDateTime &now);
     static QString applyFrontMatterTags(const QString &text, const QStringList &tags,
                                          QStringList *added = nullptr);
 

@@ -51,7 +51,7 @@ private:
         const QByteArray headers = raw.left(headerEnd);
         int contentLength = 0;
         for (const QByteArray &line : headers.split('\n')) {
-            if (line.startsWith("Content-Length:", Qt::CaseInsensitive))
+            if (line.toLower().startsWith("content-length:"))
                 contentLength = line.mid(15).trimmed().toInt();
         }
         if (raw.size() < headerEnd + 4 + contentLength)
@@ -667,20 +667,22 @@ private slots:
         }
 
         // Malformed schemas are rejected loudly, naming the problem.
-        QVERIFY(!SystemOne::parseSchema("not json", &error).isEmpty());
-        QVERIFY(!SystemOne::parseSchema("{\"questions\":{}}", &error).isEmpty());
-        QVERIFY(!SystemOne::parseSchema(
+        const auto rejects = [](const QByteArray &json) {
+            QString why;
+            return SystemOne::parseSchema(json, &why).isEmpty() && !why.isEmpty();
+        };
+        QVERIFY(rejects("not json"));
+        QVERIFY(rejects("{\"questions\":{}}"));
+        QVERIFY(rejects(
             "{\"questions\":{\"q\":{\"type\":\"choice\",\"instructions\":\"i\","
-            "\"criteria\":{\"a\":\"ay\"},\"tags\":{\"b\":\"bee\"}}}}", &error).isEmpty());
-        QVERIFY(!SystemOne::parseSchema(
+            "\"criteria\":{\"a\":\"ay\"},\"tags\":{\"b\":\"bee\"}}}}"));
+        QVERIFY(rejects(
             "{\"questions\":{\"q\":{\"type\":\"choice\",\"instructions\":\"i\","
-            "\"criteria\":{\"a\":\"ay\"}}}}", &error).isEmpty());
-        QVERIFY(!SystemOne::parseSchema(
-            "{\"questions\":{\"q\":{\"type\":\"noul\",\"instructions\":\"i\"}}}}", &error)
-            .isEmpty());
-        QVERIFY(!SystemOne::parseSchema(
-            "{\"questions\":{\"q\":{\"type\":\"score\",\"instructions\":\"i\",\"tag\":\"t\"}}}}",
-            &error).isEmpty());
+            "\"criteria\":{\"a\":\"ay\"}}}}"));
+        QVERIFY(rejects(
+            "{\"questions\":{\"q\":{\"type\":\"noul\",\"instructions\":\"i\"}}}}"));
+        QVERIFY(rejects(
+            "{\"questions\":{\"q\":{\"type\":\"score\",\"instructions\":\"i\",\"tag\":\"t\"}}}}"));
 
         // Entries carry their own thresholds and the state length is honored.
         const QList<TagQuestion> custom = SystemOne::parseSchema(QStringLiteral(
@@ -922,6 +924,8 @@ private slots:
                               QStringLiteral("http://127.0.0.1:%1/v1/systemone")
                                   .arg(server.port()));
             settings.setValue(QStringLiteral("tagging/model"), QStringLiteral("fake-model"));
+            settings.setValue(QStringLiteral("tagging/schemaPath"),
+                              m_settingsDirectory.filePath(QStringLiteral("tag-schema.json")));
         }
 
         QTemporaryDir directory;

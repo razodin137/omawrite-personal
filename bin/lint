@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+if command -v qmllint >/dev/null 2>&1; then
+  QMLLINT=qmllint
+elif [ -x /usr/lib/qt6/bin/qmllint ]; then
+  QMLLINT=/usr/lib/qt6/bin/qmllint
+elif [ -x /usr/lib64/qt6/bin/qmllint ]; then
+  QMLLINT=/usr/lib64/qt6/bin/qmllint
+else
+  echo "qmllint is required to lint the QML." >&2
+  exit 1
+fi
+
+if [ -z "$(find "$ROOT/src" -name '*.qml' -type f -print -quit)" ]; then
+  echo "No QML files found in $ROOT/src." >&2
+  exit 1
+fi
+
+find "$ROOT/src" -name '*.qml' -type f -exec "$QMLLINT" {} +

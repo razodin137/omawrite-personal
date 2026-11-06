@@ -14,4 +14,6 @@ HEADERS += \
     ../src/markdownhighlighter.h \
     ../src/systemone.h
 
+RESOURCES += ../src/resources.qrc
+
 QT += widgets printsupport quickcontrols2 quickdialogs2 dbus

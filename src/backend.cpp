@@ -125,10 +125,13 @@ QString stripYamlQuotes(QString value) {
 // A flow YAML list like [a, "b, c", 'd'] into its scalar items.
 QStringList flowListItems(const QString &value) {
     QStringList items;
+    QString body = value.trimmed();
+    if (body.startsWith(QLatin1Char('[')) && body.endsWith(QLatin1Char(']')))
+        body = body.mid(1, body.size() - 2);
     QString item;
     bool quoted = false;
     QChar quote;
-    for (const QChar c : value) {
+    for (const QChar c : body) {
         if (quoted) {
             if (c == quote)
                 quoted = false;

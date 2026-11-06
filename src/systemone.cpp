@@ -50,9 +50,9 @@ QList<TagQuestion> SystemOne::parseSchema(const QByteArray &json, QString *error
     for (auto it = questions.constBegin(); it != questions.constEnd(); ++it) {
         TagQuestion entry;
         entry.id = it.key();
-        const QJsonObject definition = it.value().toObject();
-        if (!definition.isObject())
+        if (!it.value().isObject())
             return fail(QStringLiteral("\"%1\" is not a question object").arg(it.key()));
+        const QJsonObject definition = it.value().toObject();
 
         entry.type = definition.value(QStringLiteral("type")).toString();
         entry.instructions = definition.value(QStringLiteral("instructions")).toString();
@@ -168,6 +168,7 @@ QStringList SystemOne::tagsFromAnswers(const QJsonObject &answers,
                 && !tags.contains(tag, Qt::CaseInsensitive))
             tags.append(tag);
     }
+    tags.sort(Qt::CaseInsensitive);
     return tags;
 }
 
