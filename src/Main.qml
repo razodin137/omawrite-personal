@@ -670,6 +670,52 @@ ApplicationWindow {
                     backend.replaceRange(start, end, replacement);
                 }
 
+                // Alternatives keep their own history so a version flip is not
+                // an undo step. With none, this is the editor's own undo.
+                function undo() {
+                    backend.undo();
+                }
+
+                function redo() {
+                    backend.redo();
+                }
+
+                function makeAlternative() {
+                    var start = arguments.length > 0 ? arguments[0] : selectionStart;
+                    var end = arguments.length > 1 ? arguments[1] : selectionEnd;
+                    return backend.makeAlternative(start, end);
+                }
+
+                function createAlternative() {
+                    var start = arguments.length > 0 ? arguments[0] : selectionStart;
+                    var end = arguments.length > 1 ? arguments[1] : selectionEnd;
+                    return backend.createAlternative(start, end);
+                }
+
+                function addAlternative() {
+                    var start = arguments.length > 0 ? arguments[0] : selectionStart;
+                    var end = arguments.length > 1 ? arguments[1] : selectionEnd;
+                    return backend.addAlternative(start, end);
+                }
+
+                function flipAlternative(position, direction) {
+                    if (direction === undefined) {
+                        direction = position;
+                        position = cursorPosition;
+                    }
+                    return backend.flipAlternative(position, direction);
+                }
+
+                function nextAlternative() {
+                    var position = arguments.length > 0 ? arguments[0] : cursorPosition;
+                    return backend.nextAlternative(position);
+                }
+
+                function previousAlternative() {
+                    var position = arguments.length > 0 ? arguments[0] : cursorPosition;
+                    return backend.previousAlternative(position);
+                }
+
                 function replaceSelectionWith(replacement) {
                     EditorMutations.replaceRange(editor, selectionStart, selectionEnd, replacement);
                 }

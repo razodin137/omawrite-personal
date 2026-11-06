@@ -3965,6 +3965,153 @@ private slots:
         QCOMPARE(WriteCamState::withComment(parsedBody, parsed), fileText);
     }
 
+    void widensASelectionToTheLargestScopeItCovers() {
+        const QString text = QStringLiteral(
+            "A first sentence here. A second one follows.\n\nAnother paragraph.\n");
+
+        // Part of a word takes the whole word.
+        AlternativeRange range = WriteCamState::alternativeRange(text, 3, 5);
+        QCOMPARE(range.scope, AlternativeScope::Word);
+        QCOMPARE(text.mid(range.start, range.length), QStringLiteral("first"));
+
+        // A selection inside one sentence takes that sentence, punctuation and
+        // all, without the whitespace or the one beside it.
+        range = WriteCamState::alternativeRange(text, 23, 32);
+        QCOMPARE(range.scope, AlternativeScope::Sentence);
+        QCOMPARE(text.mid(range.start, range.length),
+                 QStringLiteral("A second one follows."));
+
+        // Across a sentence boundary the paragraph is the largest scope.
+        range = WriteCamState::alternativeRange(text, 3, 32);
+        QCOMPARE(range.scope, AlternativeScope::Paragraph);
+        QCOMPARE(text.mid(range.start, range.length),
+                 QStringLiteral("A first sentence here. A second one follows."));
+
+        // The caret names the word under it.
+        range = WriteCamState::alternativeRange(text, 10, 10);
+        QCOMPARE(range.scope, AlternativeScope::Word);
+        QCOMPARE(text.mid(range.start, range.length), QStringLiteral("sentence"));
+    }
+
+    void makesAlternativesAtTheLargestScopeAndUndoesTheNesting() {
+        Backend backend;
+        QQuickTextDocument *quickDocument = attachTextEdit(&backend);
+        QVERIFY(quickDocument);
+        QTextDocument *document = quickDocument->textDocument();
+        document->setPlainText(QStringLiteral("A very good line."));
+        backend.resetHistory();
+
+        // A word first.
+        QVERIFY(backend.makeAlternative(2, 6));
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
+                 AlternativeScope::Word);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().start, 2);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().length, 4);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().versions,
+                 QStringList({QStringLiteral("very")}));
+
+        // A larger selection over the same words becomes the one sentence
+        // group, and the word group is text again.
+        QVERIFY(backend.makeAlternative(2, 11));
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
+                 AlternativeScope::Sentence);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().start, 0);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().length,
+                 int(QStringLiteral("A very good line.").size()));
+
+        // Undo brings the smaller group back.
+        backend.undo();
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
+                 AlternativeScope::Word);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().start, 2);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().length, 4);
+        QCOMPARE(document->toPlainText(), QStringLiteral("A very good line."));
+
+        // Redo puts the larger group back.
+        backend.redo();
+        QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
+                 AlternativeScope::Sentence);
+    }
+
+    void whichVersionShowsIsNotAnUndoStep() {
+        const QString body = QStringLiteral("A very good line.");
+        Backend backend;
+        QQuickTextDocument *quickDocument = attachTextEdit(&backend);
+        QVERIFY(quickDocument);
+        QTextDocument *document = quickDocument->textDocument();
+        document->setPlainText(body);
+        backend.resetHistory();
+
+        QVERIFY(backend.makeAlternative(2, 6));
+        QVERIFY(backend.addAlternativeVersion(0, QStringLiteral("excellent")));
+        QCOMPARE(backend.m_writeCamState.alternatives().first().versions.size(), 2);
+
+        // Flipping changes the words and the version showing, but adds no step.
+        QVERIFY(backend.flipAlternative(3, 1));
+        QCOMPARE(document->toPlainText(), QStringLiteral("A excellent good line."));
+
+        // Undo spends itself on adding the version, not on the flip.
+        backend.undo();
+        QCOMPARE(document->toPlainText(), body);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().versions.size(), 1);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().showing, 0);
+
+        // Redo brings the whole showing version back in one step.
+        backend.redo();
+        QCOMPARE(document->toPlainText(), QStringLiteral("A excellent good line."));
+        QCOMPARE(backend.m_writeCamState.alternatives().first().showing, 1);
+    }
+
+    void savesAndOpensTheScopeOfAnAlternative() {
+        const QString body = QStringLiteral("A very good line.\n");
+        WriteCamState state;
+        WriteCamAlternative alternative;
+        alternative.versions = {QStringLiteral("very good"), QStringLiteral("excellent")};
+        alternative.showing = 1;
+        alternative.scope = AlternativeScope::Sentence;
+        state.alternatives().append(alternative);
+
+        const QString fileText = WriteCamState::withComment(body, state);
+        QString parsedBody;
+        const WriteCamState parsed = WriteCamState::fromFileText(fileText, &parsedBody);
+        QCOMPARE(parsedBody, body);
+        QCOMPARE(parsed.alternatives().first().scope, AlternativeScope::Sentence);
+    }
+
+    void makesAndUndoesAlternativesThroughTheEditor() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+        QVERIFY(editor->setProperty("text", QStringLiteral("A very good line.")));
+
+        QMetaObject::invokeMethod(editor, "select", Q_ARG(int, 2), Q_ARG(int, 6));
+        QVERIFY(QMetaObject::invokeMethod(editor, "makeAlternative"));
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+
+        QMetaObject::invokeMethod(editor, "select", Q_ARG(int, 2), Q_ARG(int, 11));
+        QVERIFY(QMetaObject::invokeMethod(editor, "makeAlternative"));
+        QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
+                 AlternativeScope::Sentence);
+
+        QMetaObject::invokeMethod(editor, "undo");
+        QCOMPARE(backend.m_writeCamState.alternatives().size(), 1);
+        QCOMPARE(backend.m_writeCamState.alternatives().first().scope,
+                 AlternativeScope::Word);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("A very good line."));
+    }
+
     void parsesTagSchemas() {
         QString error;
         int stateChars = 0;

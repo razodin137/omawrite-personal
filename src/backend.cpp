@@ -36,6 +36,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
 #include "markdownhighlighter.h"
 #include "systemone.h"
@@ -411,6 +412,8 @@ void Backend::attachDocument(QObject *textDocument) {
 
     applyDocumentTypography();
     restoreRecovery();
+    if (m_history.isEmpty())
+        resetHistory();
 }
 
 void Backend::openDialog() {
@@ -503,6 +506,7 @@ void Backend::openOrStartFile(const QUrl &requestedUrl) {
 
     loadDocumentText(QString());
     m_writeCamState = {};
+    resetHistory();
     clearRecovery();
     // Nothing has been read, so no text counts as saved, and auto-save holds
     // off until an explicit save creates the file (see autoSave()).
@@ -638,6 +642,7 @@ bool Backend::editorTextChanged() {
     if (m_loading || m_formattingTypography)
         return false;
 
+    const QString beforeText = m_lastDocumentText;
     const QString text = currentDocumentText();
     if (text == m_lastDocumentText)
         return false;
@@ -645,8 +650,21 @@ bool Backend::editorTextChanged() {
 
     reapplyTypographyToChange();
 
-    scheduleWordCount();
+    if (m_applyingAlternative) {
+        scheduleWordCount();
+        updateDirtyStateForText(text);
+        return true;
+    }
 
+    m_writeCamState.reconcile(text);
+    recordTextHistory(beforeText, text);
+    scheduleWordCount();
+    updateDirtyStateForText(text);
+
+    return true;
+}
+
+void Backend::updateDirtyStateForText(const QString &text) {
     const QString &baseline = m_lastKnownFileText;
     // An empty baseline means a pristine untitled document, but only when there
     // is no file behind it. Once there is one, an unknown baseline is unknown
@@ -667,8 +685,6 @@ bool Backend::editorTextChanged() {
         scheduleRecovery();
         scheduleAutoSave();
     }
-
-    return true;
 }
 
 void Backend::setCaretPosition(int position) {
@@ -820,6 +836,535 @@ void Backend::replaceRange(int start, int end, const QString &text) {
     cursor.endEditBlock();
 }
 
+Backend::EditSnapshot Backend::currentSnapshot() const {
+    EditSnapshot snapshot;
+    snapshot.text = currentDocumentText();
+    snapshot.state = m_writeCamState;
+    snapshot.state.reconcile(snapshot.text);
+    if (m_document) {
+        const QTextCursor cursor(m_document);
+        snapshot.position = cursor.position();
+        snapshot.anchor = cursor.anchor();
+    }
+    return snapshot;
+}
+
+void Backend::resetHistory() {
+    m_history.clear();
+    m_historyIndex = -1;
+    m_usingAlternativeHistory = false;
+    m_applyingAlternative = false;
+    m_activeAlternative = -1;
+    if (!m_document)
+        return;
+    m_history.append(currentSnapshot());
+    m_historyIndex = 0;
+}
+
+void Backend::recordTextHistory(const QString &beforeText, const QString &afterText) {
+    if (m_loading || m_applyingAlternative || beforeText == afterText)
+        return;
+    if (m_history.isEmpty() || m_historyIndex < 0) {
+        EditSnapshot before = currentSnapshot();
+        before.text = beforeText;
+        m_history.append(before);
+        m_historyIndex = 0;
+    }
+
+    m_history.erase(m_history.begin() + m_historyIndex + 1, m_history.end());
+    EditSnapshot after = currentSnapshot();
+    after.text = afterText;
+    m_history.append(after);
+    m_historyIndex = int(m_history.size()) - 1;
+}
+
+void Backend::commitAlternativeChange(const EditSnapshot &before) {
+    if (m_history.isEmpty() || m_historyIndex < 0) {
+        m_history.append(before);
+        m_historyIndex = 0;
+    } else if (m_history.at(m_historyIndex).text != before.text) {
+        m_history[m_historyIndex] = before;
+    }
+
+    m_history.erase(m_history.begin() + m_historyIndex + 1, m_history.end());
+    m_history.append(currentSnapshot());
+    m_historyIndex = int(m_history.size()) - 1;
+    m_usingAlternativeHistory = true;
+}
+
+void Backend::updateCurrentSnapshot() {
+    if (m_history.isEmpty() || m_historyIndex < 0) {
+        resetHistory();
+        m_usingAlternativeHistory = true;
+        return;
+    }
+
+    m_history.erase(m_history.begin() + m_historyIndex + 1, m_history.end());
+    m_history[m_historyIndex] = currentSnapshot();
+    m_usingAlternativeHistory = true;
+}
+
+void Backend::refreshCurrentSnapshot() {
+    if (m_history.isEmpty() || m_historyIndex < 0) {
+        resetHistory();
+        return;
+    }
+    m_history[m_historyIndex] = currentSnapshot();
+}
+
+void Backend::restoreSnapshot(const EditSnapshot &snapshot) {
+    if (!m_document)
+        return;
+
+    m_loading = true;
+    const bool undoEnabled = m_document->isUndoRedoEnabled();
+    m_document->setUndoRedoEnabled(false);
+    m_document->setPlainText(snapshot.text);
+    m_writeCamState = snapshot.state;
+    m_writeCamState.reconcile(snapshot.text);
+    m_lastDocumentText = snapshot.text;
+    applyDocumentTypography();
+    m_document->setUndoRedoEnabled(undoEnabled);
+    m_loading = false;
+
+    const int last = qMax(0, m_document->characterCount() - 1);
+    QTextCursor cursor(m_document);
+    cursor.setPosition(qBound(0, snapshot.position, last));
+    if (snapshot.anchor != snapshot.position)
+        cursor.setPosition(qBound(0, snapshot.anchor, last), QTextCursor::KeepAnchor);
+    m_activeAlternative = qBound(-1, m_activeAlternative,
+                                 int(m_writeCamState.alternatives().size()) - 1);
+
+    m_wordCountTimer.stop();
+    m_wordCountStale = true;
+    m_wordCountAgain = false;
+    setWordCount(countWords(snapshot.text));
+    updateDirtyStateForText(snapshot.text);
+    emit alternativesChanged();
+}
+
+void Backend::applyShowingChoices(const QList<WriteCamAlternative> &wanted) {
+    if (!m_document || wanted.isEmpty())
+        return;
+
+    struct Replacement {
+        int start = 0;
+        int length = 0;
+        QString wording;
+        int showing = 0;
+    };
+    QList<Replacement> replacements;
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    QList<bool> used(alternatives.size(), false);
+    for (const WriteCamAlternative &choice : wanted) {
+        for (int index = 0; index < alternatives.size(); ++index) {
+            if (used.at(index) || alternatives.at(index).versions != choice.versions)
+                continue;
+            used[index] = true;
+            const WriteCamAlternative &alternative = alternatives.at(index);
+            if (choice.showing >= 0 && choice.showing < choice.versions.size()
+                    && choice.showing != alternative.showing) {
+                replacements.append(Replacement{
+                    alternative.start,
+                    alternative.length,
+                    choice.versions.at(choice.showing),
+                    choice.showing,
+                });
+            }
+            break;
+        }
+    }
+    if (replacements.isEmpty())
+        return;
+
+    std::sort(replacements.begin(), replacements.end(),
+              [](const Replacement &left, const Replacement &right) {
+                  return left.start > right.start;
+              });
+
+    m_loading = true;
+    for (const Replacement &replacement : std::as_const(replacements))
+        replaceRange(replacement.start, replacement.start + replacement.length,
+                     replacement.wording);
+    m_loading = false;
+
+    m_lastDocumentText = currentDocumentText();
+    m_writeCamState.reconcile(m_lastDocumentText);
+    m_wordCountTimer.stop();
+    m_wordCountStale = true;
+    m_wordCountAgain = false;
+    setWordCount(countWords(m_lastDocumentText));
+    updateDirtyStateForText(m_lastDocumentText);
+    emit alternativesChanged();
+}
+
+void Backend::undo() {
+    if (!m_document)
+        return;
+    if (!m_usingAlternativeHistory) {
+        m_document->undo();
+        return;
+    }
+    if (m_historyIndex <= 0)
+        return;
+    const QList<WriteCamAlternative> choices = m_writeCamState.alternatives();
+    --m_historyIndex;
+    restoreSnapshot(m_history.at(m_historyIndex));
+    applyShowingChoices(choices);
+    m_history[m_historyIndex] = currentSnapshot();
+}
+
+void Backend::redo() {
+    if (!m_document)
+        return;
+    if (!m_usingAlternativeHistory) {
+        m_document->redo();
+        return;
+    }
+    if (m_historyIndex + 1 >= int(m_history.size()))
+        return;
+    const QList<WriteCamAlternative> choices = m_writeCamState.alternatives();
+    ++m_historyIndex;
+    restoreSnapshot(m_history.at(m_historyIndex));
+    applyShowingChoices(choices);
+    m_history[m_historyIndex] = currentSnapshot();
+}
+
+QVariantList Backend::alternativeList() const {
+    QVariantList rows;
+    const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    for (int index = 0; index < alternatives.size(); ++index) {
+        const WriteCamAlternative &alternative = alternatives.at(index);
+        rows.append(QVariantMap{
+            {QStringLiteral("index"), index},
+            {QStringLiteral("start"), alternative.start},
+            {QStringLiteral("length"), alternative.length},
+            {QStringLiteral("scope"), WriteCamState::scopeName(alternative.scope)},
+            {QStringLiteral("versions"), alternative.versions},
+            {QStringLiteral("showing"), alternative.showing},
+            {QStringLiteral("active"), index == m_activeAlternative},
+        });
+    }
+    return rows;
+}
+
+int Backend::alternativeIndexAt(int position) const {
+    const QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    for (int index = 0; index < alternatives.size(); ++index) {
+        const WriteCamAlternative &alternative = alternatives.at(index);
+        if (position >= alternative.start
+                && position < alternative.start + alternative.length)
+            return index;
+    }
+    return -1;
+}
+
+QVariantMap Backend::alternativeAt(int position) const {
+    const int index = alternativeIndexAt(position);
+    if (index < 0)
+        return {};
+    return alternativeList().at(index).toMap();
+}
+
+bool Backend::hasAlternativeAt(int position) const {
+    return alternativeIndexAt(position) >= 0;
+}
+
+bool Backend::makeAlternative() {
+    return makeAlternative(m_caretPosition, m_caretPosition);
+}
+
+bool Backend::makeAlternative(int position) {
+    return makeAlternative(position, position);
+}
+
+bool Backend::makeAlternative(int start, int end) {
+    if (!m_document)
+        return false;
+
+    const QString text = currentDocumentText();
+    const AlternativeRange range = WriteCamState::alternativeRange(text, start, end);
+    if (range.length <= 0)
+        return false;
+
+    const QString wording = text.mid(range.start, range.length);
+    if (wording.trimmed().isEmpty())
+        return false;
+
+    const EditSnapshot before = currentSnapshot();
+
+    // Groups do not nest. A larger group swallows the smaller ones it covers,
+    // and a selection inside an existing group simply reaches for that group.
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    for (int index = alternatives.size() - 1; index >= 0; --index) {
+        const WriteCamAlternative &alternative = alternatives.at(index);
+        const int alternativeEnd = alternative.start + alternative.length;
+        const int rangeEnd = range.start + range.length;
+        const bool contains = alternative.start <= range.start && alternativeEnd >= rangeEnd;
+        if (contains)
+            return false;
+        if (alternative.start < rangeEnd && alternativeEnd > range.start) {
+            if (alternative.start >= range.start && alternativeEnd <= rangeEnd)
+                alternatives.removeAt(index);
+            else
+                return false;
+        }
+    }
+
+    WriteCamAlternative alternative;
+    alternative.start = range.start;
+    alternative.length = range.length;
+    alternative.versions = {wording};
+    alternative.showing = 0;
+    alternative.scope = range.scope;
+    alternatives.append(alternative);
+    std::sort(alternatives.begin(), alternatives.end(),
+              [](const WriteCamAlternative &left, const WriteCamAlternative &right) {
+                  return left.start < right.start;
+              });
+    m_activeAlternative = int(alternatives.size()) - 1;
+    for (int index = 0; index < alternatives.size(); ++index) {
+        if (alternatives.at(index).start == range.start)
+            m_activeAlternative = index;
+    }
+
+    commitAlternativeChange(before);
+    emit alternativesChanged();
+    return true;
+}
+
+bool Backend::addAlternative() {
+    return makeAlternative();
+}
+
+bool Backend::addAlternative(int position) {
+    return makeAlternative(position);
+}
+
+bool Backend::addAlternative(int start, int end) {
+    return makeAlternative(start, end);
+}
+
+bool Backend::createAlternative() {
+    return makeAlternative();
+}
+
+bool Backend::createAlternative(int position) {
+    return makeAlternative(position);
+}
+
+bool Backend::createAlternative(int start, int end) {
+    return makeAlternative(start, end);
+}
+
+bool Backend::newAlternative() {
+    return makeAlternative();
+}
+
+bool Backend::newAlternative(int start, int end) {
+    return makeAlternative(start, end);
+}
+
+bool Backend::makeAlternativeAt(int position) {
+    return makeAlternative(position);
+}
+
+bool Backend::makeAlternativeAt(int start, int end) {
+    return makeAlternative(start, end);
+}
+
+bool Backend::createAlternativeAt(int position) {
+    return makeAlternative(position);
+}
+
+bool Backend::createAlternativeAt(int start, int end) {
+    return makeAlternative(start, end);
+}
+
+bool Backend::flipAlternativeAt(int position, int direction) {
+    return flipAlternativeByIndex(alternativeIndexAt(position), direction);
+}
+
+bool Backend::cycleAlternative(int position, int direction) {
+    return flipAlternativeAt(position, direction);
+}
+
+bool Backend::flipAlternativeByIndex(int alternativeIndex, int direction) {
+    if (!m_document || direction == 0)
+        return false;
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (alternativeIndex < 0 || alternativeIndex >= alternatives.size())
+        return false;
+    WriteCamAlternative &alternative = alternatives[alternativeIndex];
+    if (alternative.versions.size() < 2)
+        return false;
+
+    const int count = int(alternative.versions.size());
+    const int showing = (alternative.showing + direction % count + count) % count;
+    if (showing == alternative.showing)
+        return false;
+
+    const QString wording = alternative.versions.at(showing);
+    const int start = alternative.start;
+    m_applyingAlternative = true;
+    replaceRange(start, start + alternative.length, wording);
+    m_applyingAlternative = false;
+    m_lastDocumentText = currentDocumentText();
+
+    alternative.start = start;
+    alternative.length = wording.size();
+    alternative.showing = showing;
+    m_activeAlternative = alternativeIndex;
+    updateCurrentSnapshot();
+    emit alternativesChanged();
+    return true;
+}
+
+bool Backend::flipAlternative(int direction) {
+    int index = m_activeAlternative;
+    if (index < 0)
+        index = alternativeIndexAt(m_caretPosition);
+    return flipAlternativeByIndex(index, direction);
+}
+
+bool Backend::flipAlternative(int position, int direction) {
+    return flipAlternativeByIndex(alternativeIndexAt(position), direction);
+}
+
+bool Backend::nextAlternative(int position) {
+    return flipAlternative(position, 1);
+}
+
+bool Backend::previousAlternative(int position) {
+    return flipAlternative(position, -1);
+}
+
+bool Backend::nextAlternative() {
+    return flipAlternative(1);
+}
+
+bool Backend::previousAlternative() {
+    return flipAlternative(-1);
+}
+
+bool Backend::showAlternative(int versionIndex) {
+    return showAlternativeVersion(versionIndex);
+}
+
+bool Backend::showAlternative(int alternativeIndex, int versionIndex) {
+    return showAlternativeVersion(alternativeIndex, versionIndex);
+}
+
+bool Backend::setAlternativeShowing(int versionIndex) {
+    return showAlternativeVersion(versionIndex);
+}
+
+bool Backend::setAlternativeShowing(int alternativeIndex, int versionIndex) {
+    return showAlternativeVersion(alternativeIndex, versionIndex);
+}
+
+bool Backend::showAlternativeVersion(int versionIndex) {
+    int index = m_activeAlternative;
+    if (index < 0)
+        index = alternativeIndexAt(m_caretPosition);
+    return showAlternativeVersion(index, versionIndex);
+}
+
+bool Backend::showAlternativeVersion(int alternativeIndex, int versionIndex) {
+    if (!m_document)
+        return false;
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (alternativeIndex < 0 || alternativeIndex >= alternatives.size())
+        return false;
+    WriteCamAlternative &alternative = alternatives[alternativeIndex];
+    if (versionIndex < 0 || versionIndex >= alternative.versions.size())
+        return false;
+    if (versionIndex == alternative.showing)
+        return false;
+
+    const QString wording = alternative.versions.at(versionIndex);
+    const int start = alternative.start;
+    m_applyingAlternative = true;
+    replaceRange(start, start + alternative.length, wording);
+    m_applyingAlternative = false;
+    m_lastDocumentText = currentDocumentText();
+
+    alternative.start = start;
+    alternative.length = wording.size();
+    alternative.showing = versionIndex;
+    m_activeAlternative = alternativeIndex;
+    updateCurrentSnapshot();
+    emit alternativesChanged();
+    return true;
+}
+
+bool Backend::addAlternativeVersion(const QString &version) {
+    int index = m_activeAlternative;
+    if (index < 0)
+        index = alternativeIndexAt(m_caretPosition);
+    return addAlternativeVersion(index, version);
+}
+
+bool Backend::addAlternativeVersion(int alternativeIndex, const QString &version) {
+    if (version.isEmpty())
+        return false;
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (alternativeIndex < 0 || alternativeIndex >= alternatives.size())
+        return false;
+    if (alternatives.at(alternativeIndex).versions.contains(version))
+        return false;
+
+    const EditSnapshot before = currentSnapshot();
+    alternatives[alternativeIndex].versions.append(version);
+    m_activeAlternative = alternativeIndex;
+    commitAlternativeChange(before);
+    emit alternativesChanged();
+    return true;
+}
+
+bool Backend::removeAlternativeVersion(int versionIndex) {
+    int index = m_activeAlternative;
+    if (index < 0)
+        index = alternativeIndexAt(m_caretPosition);
+    return removeAlternativeVersion(index, versionIndex);
+}
+
+bool Backend::removeAlternativeVersion(int alternativeIndex, int versionIndex) {
+    if (!m_document)
+        return false;
+    QList<WriteCamAlternative> &alternatives = m_writeCamState.alternatives();
+    if (alternativeIndex < 0 || alternativeIndex >= alternatives.size())
+        return false;
+    WriteCamAlternative &alternative = alternatives[alternativeIndex];
+    if (alternative.versions.size() <= 1
+            || versionIndex < 0 || versionIndex >= alternative.versions.size())
+        return false;
+
+    const EditSnapshot before = currentSnapshot();
+    const bool wasShowing = versionIndex == alternative.showing;
+    alternative.versions.removeAt(versionIndex);
+    if (alternative.showing > versionIndex)
+        --alternative.showing;
+    alternative.showing = qBound(0, alternative.showing,
+                                 int(alternative.versions.size()) - 1);
+
+    if (wasShowing) {
+        const QString wording = alternative.versions.at(alternative.showing);
+        const int start = alternative.start;
+        m_applyingAlternative = true;
+        replaceRange(start, start + alternative.length, wording);
+        m_applyingAlternative = false;
+        m_lastDocumentText = currentDocumentText();
+        alternative.start = start;
+        alternative.length = wording.size();
+    }
+
+    m_activeAlternative = alternativeIndex;
+    commitAlternativeChange(before);
+    emit alternativesChanged();
+    return true;
+}
+
 // A block's state says what follows its line, so a fence line itself is only
 // code on its inner side: past an opening fence's backticks or tildes, or anywhere
 // before the end of a closing one.
@@ -931,6 +1476,8 @@ void Backend::loadDocumentText(const QString &text) {
     m_wordCountStale = true;
     m_wordCountAgain = false;
     setWordCount(countWords(text));
+    resetHistory();
+    emit alternativesChanged();
 }
 
 void Backend::setFileUrl(const QUrl &url) {
@@ -1854,6 +2401,7 @@ void Backend::replaceDocumentText(const QString &from, const QString &to) {
     reapplyTypographyToChange();
     m_wordCountTimer.stop();
     setWordCount(countWords(m_lastDocumentText));
+    refreshCurrentSnapshot();
 }
 
 void Backend::updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle,

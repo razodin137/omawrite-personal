@@ -12,6 +12,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <memory>
 
 #include "writecamstate.h"
@@ -38,6 +39,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString themeSelectionForeground READ themeSelectionForeground NOTIFY themeColorsChanged)
     Q_PROPERTY(QString editorFont READ editorFont WRITE setEditorFont NOTIFY editorFontChanged)
     Q_PROPERTY(QStringList availableFonts READ availableFonts CONSTANT)
+    Q_PROPERTY(QVariantList alternatives READ alternativeList NOTIFY alternativesChanged)
+    Q_PROPERTY(int activeAlternative READ activeAlternative NOTIFY alternativesChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -65,8 +68,19 @@ public:
     QString editorFont() const { return m_editorFont; }
     void setEditorFont(const QString &family);
     QStringList availableFonts() const;
+    QVariantList alternativeList() const;
+    QVariantList alternatives() const { return alternativeList(); }
+    int activeAlternative() const { return m_activeAlternative; }
     static QString defaultEditorFont();
     static QStringList selectableFontFamilies(const QStringList &families);
+    static AlternativeRange alternativeRange(const QString &body, int start, int end)
+    {
+        return WriteCamState::alternativeRange(body, start, end);
+    }
+    static QPair<int, int> scopeForSelection(const QString &body, int start, int end)
+    {
+        return WriteCamState::scopeForSelection(body, start, end);
+    }
     static int countWords(const QString &text);
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);
@@ -108,6 +122,43 @@ public:
     Q_INVOKABLE void setSearchHighlight(const QString &query, int currentMatchStart);
     Q_INVOKABLE QVariantList searchMatches(const QString &query) const;
     Q_INVOKABLE void replaceRange(int start, int end, const QString &text);
+    Q_INVOKABLE bool makeAlternative();
+    Q_INVOKABLE bool makeAlternative(int position);
+    Q_INVOKABLE bool makeAlternative(int start, int end);
+    Q_INVOKABLE bool addAlternative();
+    Q_INVOKABLE bool addAlternative(int position);
+    Q_INVOKABLE bool addAlternative(int start, int end);
+    Q_INVOKABLE bool createAlternative();
+    Q_INVOKABLE bool createAlternative(int position);
+    Q_INVOKABLE bool createAlternative(int start, int end);
+    Q_INVOKABLE bool newAlternative();
+    Q_INVOKABLE bool newAlternative(int start, int end);
+    Q_INVOKABLE bool makeAlternativeAt(int position);
+    Q_INVOKABLE bool makeAlternativeAt(int start, int end);
+    Q_INVOKABLE bool createAlternativeAt(int position);
+    Q_INVOKABLE bool createAlternativeAt(int start, int end);
+    Q_INVOKABLE QVariantMap alternativeAt(int position) const;
+    Q_INVOKABLE bool hasAlternativeAt(int position) const;
+    Q_INVOKABLE bool flipAlternative(int direction);
+    Q_INVOKABLE bool flipAlternative(int position, int direction);
+    Q_INVOKABLE bool flipAlternativeAt(int position, int direction);
+    Q_INVOKABLE bool cycleAlternative(int position, int direction);
+    Q_INVOKABLE bool nextAlternative(int position);
+    Q_INVOKABLE bool previousAlternative(int position);
+    Q_INVOKABLE bool nextAlternative();
+    Q_INVOKABLE bool previousAlternative();
+    Q_INVOKABLE bool showAlternative(int versionIndex);
+    Q_INVOKABLE bool showAlternative(int alternativeIndex, int versionIndex);
+    Q_INVOKABLE bool setAlternativeShowing(int versionIndex);
+    Q_INVOKABLE bool setAlternativeShowing(int alternativeIndex, int versionIndex);
+    Q_INVOKABLE bool showAlternativeVersion(int versionIndex);
+    Q_INVOKABLE bool showAlternativeVersion(int alternativeIndex, int versionIndex);
+    Q_INVOKABLE bool addAlternativeVersion(const QString &version);
+    Q_INVOKABLE bool addAlternativeVersion(int alternativeIndex, const QString &version);
+    Q_INVOKABLE bool removeAlternativeVersion(int versionIndex);
+    Q_INVOKABLE bool removeAlternativeVersion(int alternativeIndex, int versionIndex);
+    Q_INVOKABLE void undo();
+    Q_INVOKABLE void redo();
     Q_INVOKABLE bool insideFence(int position) const;
     Q_INVOKABLE QVariantMap windowGeometry() const;
     Q_INVOKABLE void saveWindowGeometry(int x, int y, int width, int height, bool maximized);
@@ -128,6 +179,7 @@ signals:
     void saveSucceeded();
     void externalChangeDetected(bool deleted, bool locallyModified);
     void tagsApplied(const QStringList &tags);
+    void alternativesChanged();
 
 private:
     friend class WriteCamTest;
@@ -145,6 +197,23 @@ private:
     void tagDocument();
     void finishTagRequest();
     void replaceDocumentText(const QString &from, const QString &to);
+    void updateDirtyStateForText(const QString &text);
+    struct EditSnapshot {
+        QString text;
+        WriteCamState state;
+        int position = 0;
+        int anchor = 0;
+    };
+    EditSnapshot currentSnapshot() const;
+    void resetHistory();
+    void recordTextHistory(const QString &beforeText, const QString &afterText);
+    void commitAlternativeChange(const EditSnapshot &before);
+    void updateCurrentSnapshot();
+    void refreshCurrentSnapshot();
+    void restoreSnapshot(const EditSnapshot &snapshot);
+    void applyShowingChoices(const QList<WriteCamAlternative> &wanted);
+    int alternativeIndexAt(int position) const;
+    bool flipAlternativeByIndex(int alternativeIndex, int direction);
     qreal steppedTextZoom(int direction) const;
     void setTextZoom(qreal zoom);
     void setFileUrl(const QUrl &url);
@@ -221,6 +290,11 @@ private:
     QString m_recoveryPath;
     std::unique_ptr<QLockFile> m_recoveryLock;
     WriteCamState m_writeCamState;
+    QList<EditSnapshot> m_history;
+    int m_historyIndex = -1;
+    bool m_usingAlternativeHistory = false;
+    bool m_applyingAlternative = false;
+    int m_activeAlternative = -1;
 
     QString m_themeBackground;
     QString m_themeForeground;
