@@ -33,6 +33,7 @@ Dialog {
         { key: "Ctrl+Shift+X", desc: "Strikethrough" },
         { key: "Ctrl+K", desc: "Link" },
         { key: "Ctrl+Shift+C", desc: "Copy as HTML" },
+        { key: "Ctrl+,", desc: "Settings" },
         { key: "Ctrl+= / Ctrl++", desc: "Increase Text Size" },
         { key: "Ctrl+-", desc: "Decrease Text Size" },
         { key: "Ctrl+0", desc: "Reset Text Size" },

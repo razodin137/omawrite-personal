@@ -7,6 +7,7 @@
         <file alias="SquareDialogButton.qml">SquareDialogButton.qml</file>
         <file alias="UnsavedChangesDialog.qml">UnsavedChangesDialog.qml</file>
         <file alias="ExternalChangeDialog.qml">ExternalChangeDialog.qml</file>
+        <file alias="SettingsDialog.qml">SettingsDialog.qml</file>
         <file alias="FontPicker.qml">FontPicker.qml</file>
         <file alias="AlternativesPanel.qml">AlternativesPanel.qml</file>
         <file alias="EditorMutations.js">EditorMutations.js</file>

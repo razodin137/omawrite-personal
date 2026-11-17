@@ -6,6 +6,7 @@ TARGET = tst_writecam
 INCLUDEPATH += ../src
 SOURCES += \
     tst_writecam.cpp \
+    ../src/aiservice.cpp \
     ../src/alternativetone.cpp \
     ../src/backend.cpp \
     ../src/cli.cpp \
@@ -13,6 +14,7 @@ SOURCES += \
     ../src/systemone.cpp \
     ../src/writecamstate.cpp
 HEADERS += \
+    ../src/aiservice.h \
     ../src/alternativetone.h \
     ../src/backend.h \
     ../src/cli.h \

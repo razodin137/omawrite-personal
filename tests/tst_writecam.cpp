@@ -28,6 +28,7 @@
 #include "cli.h"
 
 #include "alternativetone.h"
+#include "aiservice.h"
 #include "backend.h"
 #include "markdownhighlighter.h"
 #include "systemone.h"
@@ -4625,6 +4626,325 @@ private slots:
         }
     }
 
+    void readsLanguageModelSettingsFromTheEnvironment() {
+        QSettings settings;
+        const QStringList keys = {QStringLiteral("ai/address"),
+                                  QStringLiteral("ai/wireFormat"),
+                                  QStringLiteral("ai/model"),
+                                  QStringLiteral("ai/apiKey")};
+        for (const QString &key : keys)
+            settings.remove(key);
+
+        ScopedEnv address("WRITECAM_AI_ADDRESS",
+                          "https://example.test/v1/chat/completions");
+        ScopedEnv wireFormat("WRITECAM_AI_WIRE_FORMAT", "ollama");
+        ScopedEnv model("WRITECAM_AI_MODEL", "llama3.2");
+        ScopedEnv key("WRITECAM_AI_KEY", "environment-secret");
+
+        AiConfig config = AiService::loadConfig();
+        QCOMPARE(config.address, QUrl(QStringLiteral("https://example.test/v1/chat/completions")));
+        QCOMPARE(config.wireFormat, QStringLiteral("ollama"));
+        QCOMPARE(config.model, QStringLiteral("llama3.2"));
+        QCOMPARE(config.apiKey, QStringLiteral("environment-secret"));
+
+        // Settings win field by field; a setting left empty falls back on its
+        // own environment variable rather than hiding the others.
+        settings.setValue(QStringLiteral("ai/model"), QStringLiteral("stored-model"));
+        config = AiService::loadConfig();
+        QCOMPARE(config.model, QStringLiteral("stored-model"));
+        QCOMPARE(config.address, QUrl(QStringLiteral("https://example.test/v1/chat/completions")));
+        QCOMPARE(config.apiKey, QStringLiteral("environment-secret"));
+
+        // A setting that is empty is the same as not set.
+        settings.setValue(QStringLiteral("ai/model"), QString());
+        QCOMPARE(AiService::loadConfig().model, QStringLiteral("llama3.2"));
+
+        for (const QString &keyName : keys)
+            settings.remove(keyName);
+    }
+
+    void keepsTheLanguageModelKeyOutOfTheInterface() {
+        QSettings settings;
+        settings.remove(QStringLiteral("ai/address"));
+        settings.remove(QStringLiteral("ai/wireFormat"));
+        settings.remove(QStringLiteral("ai/model"));
+        settings.remove(QStringLiteral("ai/apiKey"));
+        Backend backend;
+        backend.saveAiSettings(QStringLiteral("http://127.0.0.1:9/v1/chat/completions"),
+                               QStringLiteral("openai"), QStringLiteral("test-model"),
+                               QStringLiteral("stored-secret"));
+
+        // The value crosses into native storage and comes back only as a
+        // yes/no answer; there is no property that reads the key itself.
+        QCOMPARE(QSettings().value(QStringLiteral("ai/apiKey")).toString(),
+                 QStringLiteral("stored-secret"));
+        QVERIFY(backend.aiKeyAvailable());
+        QVERIFY(!backend.property("aiKey").isValid());
+        QVERIFY(!backend.property("aiApiKey").isValid());
+        QVERIFY(!backend.findChild<QObject *>(QStringLiteral("aiKey")));
+
+        backend.clearAiKey();
+        QVERIFY(!backend.aiKeyAvailable());
+        QVERIFY(!QSettings().contains(QStringLiteral("ai/apiKey")));
+        settings.remove(QStringLiteral("ai/address"));
+        settings.remove(QStringLiteral("ai/wireFormat"));
+        settings.remove(QStringLiteral("ai/model"));
+    }
+
+    void talksTheChosenWireFormat() {
+        // OpenAI-compatible: choices[0].message.content, bearer authorization.
+        FakeDecisionServer openai([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("choices"),
+                                QJsonArray{QJsonObject{
+                                    {QStringLiteral("message"),
+                                     QJsonObject{{QStringLiteral("role"), QStringLiteral("assistant")},
+                                                 {QStringLiteral("content"),
+                                                  QStringLiteral("hello from openai")}}}}}}};
+        });
+        QVERIFY(openai.port() > 0);
+
+        AiConfig config;
+        config.address = QUrl(QStringLiteral("http://127.0.0.1:%1/odd/path?token=1")
+                                  .arg(openai.port()));
+        config.wireFormat = QStringLiteral("openai");
+        config.model = QStringLiteral("gpt-4o-mini");
+        config.apiKey = QStringLiteral("secret");
+        config.timeoutMs = 5000;
+
+        const QJsonArray messages{
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
+                        {QStringLiteral("content"), QStringLiteral("Hi")}}};
+        QString error;
+        QCOMPARE(AiService::complete(config, messages, &error),
+                 QStringLiteral("hello from openai"));
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QCOMPARE(openai.lastRequestLine(),
+                 QByteArrayLiteral("POST /odd/path?token=1 HTTP/1.1"));
+        QVERIFY(openai.lastHeaders().contains("Authorization: Bearer secret"));
+        QJsonObject body = QJsonDocument::fromJson(openai.lastBody()).object();
+        QCOMPARE(body.value(QStringLiteral("model")).toString(), QStringLiteral("gpt-4o-mini"));
+        QCOMPARE(body.value(QStringLiteral("messages")).toArray().size(), 1);
+
+        // Ollama: message.content, stream turned off, no path is invented.
+        FakeDecisionServer ollama([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("message"),
+                                QJsonObject{{QStringLiteral("role"), QStringLiteral("assistant")},
+                                            {QStringLiteral("content"),
+                                             QStringLiteral("hello from ollama")}}}};
+        });
+        QVERIFY(ollama.port() > 0);
+        config.address = QUrl(QStringLiteral("http://127.0.0.1:%1/api/chat")
+                                  .arg(ollama.port()));
+        config.wireFormat = QStringLiteral("ollama");
+        config.model = QStringLiteral("llama3.2");
+        config.apiKey.clear();
+        QCOMPARE(AiService::complete(config, messages, &error),
+                 QStringLiteral("hello from ollama"));
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        body = QJsonDocument::fromJson(ollama.lastBody()).object();
+        QCOMPARE(body.value(QStringLiteral("stream")).toBool(), false);
+        QVERIFY(!ollama.lastHeaders().contains("Authorization:"));
+
+        // Anthropic: content[].text, x-api-key, and the system prompt beside
+        // the conversation rather than inside it.
+        FakeDecisionServer anthropic([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("content"),
+                                QJsonArray{QJsonObject{
+                                    {QStringLiteral("type"), QStringLiteral("text")},
+                                    {QStringLiteral("text"),
+                                     QStringLiteral("hello from anthropic")}}}}};
+        });
+        QVERIFY(anthropic.port() > 0);
+        config.address = QUrl(QStringLiteral("http://127.0.0.1:%1/v1/messages")
+                                  .arg(anthropic.port()));
+        config.wireFormat = QStringLiteral("anthropic");
+        config.model = QStringLiteral("claude-sonnet-4");
+        config.apiKey = QStringLiteral("anthropic-secret");
+        const QJsonArray withSystem{
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("system")},
+                        {QStringLiteral("content"), QStringLiteral("Be brief.")}},
+            QJsonObject{{QStringLiteral("role"), QStringLiteral("user")},
+                        {QStringLiteral("content"), QStringLiteral("Hi")}}};
+        QCOMPARE(AiService::complete(config, withSystem, &error, 256),
+                 QStringLiteral("hello from anthropic"));
+        QVERIFY2(error.isEmpty(), qPrintable(error));
+        QVERIFY(anthropic.lastHeaders().contains("x-api-key: anthropic-secret"));
+        QVERIFY(anthropic.lastHeaders().contains("anthropic-version: 2023-06-01"));
+        body = QJsonDocument::fromJson(anthropic.lastBody()).object();
+        QCOMPARE(body.value(QStringLiteral("system")).toString(), QStringLiteral("Be brief."));
+        QCOMPARE(body.value(QStringLiteral("messages")).toArray().size(), 1);
+        QCOMPARE(body.value(QStringLiteral("max_tokens")).toInt(), 256);
+
+        // A reply outside the chosen shape is an error, not empty text.
+        FakeDecisionServer malformed([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("choices"), QJsonArray()}};
+        });
+        QVERIFY(malformed.port() > 0);
+        config.address = QUrl(QStringLiteral("http://127.0.0.1:%1/v1/chat/completions")
+                                  .arg(malformed.port()));
+        config.wireFormat = QStringLiteral("openai");
+        QVERIFY(AiService::complete(config, messages, &error).isEmpty());
+        QVERIFY2(error.contains(QStringLiteral("OpenAI format")), qPrintable(error));
+    }
+
+    void testsTheLanguageModelConnection() {
+        FakeDecisionServer server([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("choices"),
+                                QJsonArray{QJsonObject{
+                                    {QStringLiteral("message"),
+                                     QJsonObject{{QStringLiteral("content"),
+                                                  QStringLiteral("OK")}}}}}}};
+        });
+        QVERIFY(server.port() > 0);
+
+        AiConfig config;
+        config.address = QUrl(QStringLiteral("http://127.0.0.1:%1/custom/chat")
+                                  .arg(server.port()));
+        config.wireFormat = QStringLiteral("openai");
+        config.model = QStringLiteral("test-model");
+        config.apiKey = QStringLiteral("secret");
+        config.timeoutMs = 5000;
+
+        QString error;
+        QVERIFY2(AiService::testConnection(config, &error), qPrintable(error));
+        QVERIFY(error.isEmpty());
+        QCOMPARE(server.requestCount(), 1);
+        // The test reaches the address exactly as written, path and query and
+        // all, rather than a guessed /v1/chat/completions under a base URL.
+        QCOMPARE(server.lastRequestLine(), QByteArrayLiteral("POST /custom/chat HTTP/1.1"));
+        QVERIFY(server.lastHeaders().contains("Authorization: Bearer secret"));
+
+        FakeDecisionServer denied([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("error"),
+                                QJsonObject{{QStringLiteral("message"),
+                                             QStringLiteral("bad key")}}}};
+        }, 401);
+        QVERIFY(denied.port() > 0);
+        config.address = QUrl(QStringLiteral("http://127.0.0.1:%1/v1/chat/completions")
+                                  .arg(denied.port()));
+        QVERIFY(!AiService::testConnection(config, &error));
+        QVERIFY2(error.contains(QStringLiteral("401")), qPrintable(error));
+        QVERIFY2(error.contains(QStringLiteral("bad key")), qPrintable(error));
+
+        // A non-HTTP address is refused before any socket is opened.
+        const int requestsBefore = server.requestCount();
+        config.address = QUrl(QStringLiteral("file:///etc/passwd"));
+        QVERIFY(!AiService::testConnection(config, &error));
+        QVERIFY2(error.contains(QStringLiteral("http")), qPrintable(error));
+        QCOMPARE(server.requestCount(), requestsBefore);
+    }
+
+    void savesAndTestsTheLanguageModelFromTheBackend() {
+        QSettings settings;
+        settings.remove(QStringLiteral("ai/address"));
+        settings.remove(QStringLiteral("ai/wireFormat"));
+        settings.remove(QStringLiteral("ai/model"));
+        settings.remove(QStringLiteral("ai/apiKey"));
+
+        FakeDecisionServer server([](const QJsonObject &) {
+            return QJsonObject{{QStringLiteral("choices"),
+                                QJsonArray{QJsonObject{
+                                    {QStringLiteral("message"),
+                                     QJsonObject{{QStringLiteral("content"),
+                                                  QStringLiteral("OK")}}}}}}};
+        });
+        QVERIFY(server.port() > 0);
+
+        Backend backend;
+        QSignalSpy settingsSpy(&backend, &Backend::aiSettingsChanged);
+        QCOMPARE(backend.aiWireFormats().size(), 3);
+        backend.saveAiSettings(
+            QStringLiteral("http://127.0.0.1:%1/v1/chat/completions").arg(server.port()),
+            QStringLiteral("openai"), QStringLiteral("test-model"),
+            QStringLiteral("stored-secret"));
+        QCOMPARE(settingsSpy.count(), 1);
+        QCOMPARE(backend.aiAddress(),
+                 QStringLiteral("http://127.0.0.1:%1/v1/chat/completions").arg(server.port()));
+        QCOMPARE(backend.aiWireFormat(), QStringLiteral("openai"));
+        QCOMPARE(backend.aiModel(), QStringLiteral("test-model"));
+        QVERIFY(backend.aiKeyAvailable());
+
+        QSignalSpy testSpy(&backend, &Backend::aiTestFinished);
+        // An empty key argument falls back on the stored one.
+        backend.testAiConnection(backend.aiAddress(), backend.aiWireFormat(),
+                                 backend.aiModel(), QString());
+        QTRY_COMPARE(testSpy.count(), 1);
+        QCOMPARE(testSpy.first().at(0).toBool(), true);
+        QVERIFY2(testSpy.first().at(1).toString().isEmpty(),
+                 qPrintable(testSpy.first().at(1).toString()));
+        QCOMPARE(server.requestCount(), 1);
+        QVERIFY(server.lastHeaders().contains("Authorization: Bearer stored-secret"));
+
+        // Saving an empty key field keeps the stored key.
+        backend.saveAiSettings(backend.aiAddress(), QStringLiteral("ollama"),
+                               backend.aiModel(), QString());
+        QVERIFY(backend.aiKeyAvailable());
+        QCOMPARE(backend.aiWireFormat(), QStringLiteral("ollama"));
+
+        backend.clearAiKey();
+        QVERIFY(!backend.aiKeyAvailable());
+
+        settings.remove(QStringLiteral("ai/address"));
+        settings.remove(QStringLiteral("ai/wireFormat"));
+        settings.remove(QStringLiteral("ai/model"));
+    }
+
+    void opensSettingsFromTheFooter() {
+        QSettings settings;
+        settings.setValue(QStringLiteral("ai/address"),
+                          QStringLiteral("http://127.0.0.1:9/v1/chat/completions"));
+        settings.setValue(QStringLiteral("ai/wireFormat"), QStringLiteral("openai"));
+        settings.setValue(QStringLiteral("ai/model"), QStringLiteral("test-model"));
+        settings.setValue(QStringLiteral("ai/apiKey"), QStringLiteral("stored-secret"));
+
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+
+        QObject *settingsButton = window->findChild<QObject *>(QStringLiteral("settingsButton"));
+        QVERIFY(settingsButton);
+        QObject *dialog = window->findChild<QObject *>(QStringLiteral("settingsDialog"));
+        QVERIFY(dialog);
+
+        QMetaObject::invokeMethod(settingsButton, "clicked");
+        QTRY_VERIFY(dialog->property("opened").toBool());
+
+        QObject *addressField = dialog->findChild<QObject *>(QStringLiteral("aiAddressField"));
+        QObject *wireFormatBox = dialog->findChild<QObject *>(QStringLiteral("aiWireFormatBox"));
+        QObject *modelField = dialog->findChild<QObject *>(QStringLiteral("aiModelField"));
+        QObject *keyField = dialog->findChild<QObject *>(QStringLiteral("aiKeyField"));
+        QVERIFY(addressField);
+        QVERIFY(wireFormatBox);
+        QVERIFY(modelField);
+        QVERIFY(keyField);
+        QCOMPARE(addressField->property("text").toString(), backend.aiAddress());
+        QCOMPARE(modelField->property("text").toString(), QStringLiteral("test-model"));
+        QCOMPARE(wireFormatBox->property("currentIndex").toInt(), 0);
+        // The stored key is not read back into the interface.
+        QVERIFY(keyField->property("text").toString().isEmpty());
+        QCOMPARE(keyField->property("echoMode").toInt(), 2);  // TextInput.Password
+
+        // Save writes a typed key on the native side and closes the dialog.
+        QVERIFY(keyField->setProperty("text", QStringLiteral("typed-secret")));
+        QObject *saveButton = dialog->findChild<QObject *>(QStringLiteral("aiSaveButton"));
+        QVERIFY(saveButton);
+        QMetaObject::invokeMethod(saveButton, "clicked");
+        QTRY_VERIFY(!dialog->property("opened").toBool());
+        QCOMPARE(QSettings().value(QStringLiteral("ai/apiKey")).toString(),
+                 QStringLiteral("typed-secret"));
+
+        for (const QString &key : {QStringLiteral("ai/address"), QStringLiteral("ai/wireFormat"),
+                                   QStringLiteral("ai/model"), QStringLiteral("ai/apiKey")})
+            settings.remove(key);
+    }
+
     void parsesTagSchemas() {
         QString error;
         int stateChars = 0;
@@ -5093,6 +5413,26 @@ private:
         }
         return formats;
     }
+
+    // Sets one environment variable for the life of the scope and restores
+    // whatever was there before.
+    struct ScopedEnv {
+        ScopedEnv(const char *name, const QByteArray &value)
+            : m_name(name), m_original(qgetenv(name)) {
+            if (value.isNull())
+                qunsetenv(name);
+            else
+                qputenv(name, value);
+        }
+        ~ScopedEnv() {
+            if (m_original.isEmpty())
+                qunsetenv(m_name.constData());
+            else
+                qputenv(m_name.constData(), m_original);
+        }
+        QByteArray m_name;
+        QByteArray m_original;
+    };
 
     // Points HOME at a scratch tree holding one colors.toml, and puts it back on the way out.
     struct ScopedTheme {

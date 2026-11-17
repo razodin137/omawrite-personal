@@ -276,6 +276,11 @@ ApplicationWindow {
     }
 
     Shortcut {
+        sequence: "Ctrl+,"
+        onActivated: settingsDialog.open()
+    }
+
+    Shortcut {
         sequences: ["Meta+F", "F11"]
         onActivated: toggleFullScreen()
     }
@@ -406,6 +411,18 @@ ApplicationWindow {
         darkMode: win.darkMode
         textScale: win.textScale
         textColor: win.textColor
+        activeButtonColor: backend.themeAccent
+        containerWidth: win.width
+        containerHeight: win.height
+    }
+
+    SettingsDialog {
+        id: settingsDialog
+        darkMode: win.darkMode
+        textScale: win.textScale
+        textColor: win.textColor
+        strongTextColor: win.textColor
+        mutedColor: win.mutedColor
         activeButtonColor: backend.themeAccent
         containerWidth: win.width
         containerHeight: win.height
@@ -1200,6 +1217,14 @@ ApplicationWindow {
                 iconColor: win.mutedColor
                 tooltip: "Font"
                 onClicked: fontPicker.opened ? fontPicker.close() : fontPicker.open()
+            }
+
+            FooterIconButton {
+                objectName: "settingsButton"
+                iconName: "settings"
+                iconColor: win.mutedColor
+                tooltip: "Settings"
+                onClicked: settingsDialog.open()
             }
 
             Label {

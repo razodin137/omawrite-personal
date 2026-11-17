@@ -5,6 +5,7 @@ TARGET = writecam
 TEMPLATE = app
 
 HEADERS += \
+    src/aiservice.h \
     src/alternativetone.h \
     src/backend.h \
     src/cli.h \
@@ -16,6 +17,7 @@ HEADERS += \
 
 SOURCES += \
     src/main.cpp \
+    src/aiservice.cpp \
     src/alternativetone.cpp \
     src/backend.cpp \
     src/cli.cpp \

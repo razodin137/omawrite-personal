@@ -39,6 +39,7 @@
 #include <utility>
 
 #include "markdownhighlighter.h"
+#include "aiservice.h"
 #include "systemone.h"
 constexpr qreal typoraLineHeightPercent = 140;
 
@@ -284,6 +285,8 @@ Backend::Backend(QObject *parent) : QObject(parent) {
     });
     connect(&m_tagWatcher, &QFutureWatcher<TagDecision>::finished,
             this, &Backend::finishTagRequest);
+    connect(&m_aiTestWatcher, &QFutureWatcher<AiTestResult>::finished,
+            this, &Backend::finishAiTest);
     m_recoveryTimer.setSingleShot(true);
     m_recoveryTimer.setInterval(750);
     connect(&m_recoveryTimer, &QTimer::timeout, this, &Backend::writeRecovery);
@@ -1600,6 +1603,99 @@ QStringList Backend::availableFonts() const {
         families.append(family);
     }
     return selectableFontFamilies(families);
+}
+
+QString Backend::aiAddress() const {
+    return AiService::loadConfig().address.toString();
+}
+
+QString Backend::aiWireFormat() const {
+    return AiService::loadConfig().wireFormat;
+}
+
+QString Backend::aiModel() const {
+    return AiService::loadConfig().model;
+}
+
+bool Backend::aiKeyAvailable() const {
+    // Only whether a key exists, never the key itself, is allowed to cross
+    // into the interface.
+    return !AiService::loadConfig().apiKey.isEmpty();
+}
+
+QVariantList Backend::aiWireFormats() const {
+    QVariantList formats;
+    for (const QString &format : AiService::wireFormats()) {
+        formats.append(QVariantMap{{QStringLiteral("value"), format},
+                                   {QStringLiteral("label"),
+                                    AiService::wireFormatLabel(format)}});
+    }
+    return formats;
+}
+
+void Backend::saveAiSettings(const QString &address, const QString &wireFormat,
+                             const QString &model, const QString &key) {
+    QSettings settings;
+    const auto removeOrStore = [&settings](const QString &name, const QString &value) {
+        const QString trimmed = value.trimmed();
+        if (trimmed.isEmpty())
+            settings.remove(name);
+        else
+            settings.setValue(name, trimmed);
+    };
+
+    removeOrStore(QStringLiteral("ai/address"), address);
+    removeOrStore(QStringLiteral("ai/wireFormat"), AiService::normalizeWireFormat(wireFormat));
+    removeOrStore(QStringLiteral("ai/model"), model);
+    // An empty field means "keep the stored key", so the key survives editing
+    // the address or the model. Forgetting it is a separate action.
+    const QString trimmedKey = key.trimmed();
+    if (!trimmedKey.isEmpty())
+        settings.setValue(QStringLiteral("ai/apiKey"), trimmedKey);
+
+    emit aiSettingsChanged();
+}
+
+void Backend::clearAiKey() {
+    QSettings().remove(QStringLiteral("ai/apiKey"));
+    emit aiSettingsChanged();
+}
+
+void Backend::testAiConnection(const QString &address, const QString &wireFormat,
+                               const QString &model, const QString &key) {
+    if (m_aiTestActive)
+        return;
+
+    AiConfig config = AiService::loadConfig();
+    if (!address.trimmed().isEmpty())
+        config.address = QUrl(address.trimmed());
+    if (!wireFormat.trimmed().isEmpty())
+        config.wireFormat = AiService::normalizeWireFormat(wireFormat);
+    if (!model.trimmed().isEmpty())
+        config.model = model.trimmed();
+    if (!key.trimmed().isEmpty())
+        config.apiKey = key.trimmed();
+
+    QString error;
+    if (!AiService::validate(config, &error)) {
+        emit aiTestFinished(false, error);
+        return;
+    }
+
+    m_aiTestActive = true;
+    emit aiTestingChanged();
+    m_aiTestWatcher.setFuture(QtConcurrent::run([config]() {
+        AiTestResult result;
+        result.success = AiService::testConnection(config, &result.message);
+        return result;
+    }));
+}
+
+void Backend::finishAiTest() {
+    m_aiTestActive = false;
+    emit aiTestingChanged();
+    const AiTestResult result = m_aiTestWatcher.result();
+    emit aiTestFinished(result.success, result.message);
 }
 
 QStringList Backend::selectableFontFamilies(const QStringList &families) {

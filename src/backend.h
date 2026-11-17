@@ -39,6 +39,12 @@ class Backend : public QObject {
     Q_PROPERTY(QString themeSelectionForeground READ themeSelectionForeground NOTIFY themeColorsChanged)
     Q_PROPERTY(QString editorFont READ editorFont WRITE setEditorFont NOTIFY editorFontChanged)
     Q_PROPERTY(QStringList availableFonts READ availableFonts CONSTANT)
+    Q_PROPERTY(QString aiAddress READ aiAddress NOTIFY aiSettingsChanged)
+    Q_PROPERTY(QString aiWireFormat READ aiWireFormat NOTIFY aiSettingsChanged)
+    Q_PROPERTY(QString aiModel READ aiModel NOTIFY aiSettingsChanged)
+    Q_PROPERTY(bool aiKeyAvailable READ aiKeyAvailable NOTIFY aiSettingsChanged)
+    Q_PROPERTY(bool aiTesting READ aiTesting NOTIFY aiTestingChanged)
+    Q_PROPERTY(QVariantList aiWireFormats READ aiWireFormats CONSTANT)
     Q_PROPERTY(QVariantList alternatives READ alternativeList NOTIFY alternativesChanged)
     Q_PROPERTY(int activeAlternative READ activeAlternative NOTIFY alternativesChanged)
     Q_PROPERTY(QStringList activeAlternativeVersions READ activeAlternativeVersions
@@ -74,6 +80,12 @@ public:
     QString editorFont() const { return m_editorFont; }
     void setEditorFont(const QString &family);
     QStringList availableFonts() const;
+    QString aiAddress() const;
+    QString aiWireFormat() const;
+    QString aiModel() const;
+    bool aiKeyAvailable() const;
+    bool aiTesting() const { return m_aiTestActive; }
+    QVariantList aiWireFormats() const;
     QVariantList alternativeList() const;
     QVariantList alternatives() const { return alternativeList(); }
     int activeAlternative() const { return m_activeAlternative; }
@@ -125,7 +137,11 @@ public:
     Q_INVOKABLE void printDocument();
     Q_INVOKABLE void copyAsHtml();
     Q_INVOKABLE void newWindow();
-    Q_INVOKABLE QString clipboardUrl() const;
+    Q_INVOKABLE void saveAiSettings(const QString &address, const QString &wireFormat,
+                                    const QString &model, const QString &key);
+    Q_INVOKABLE void clearAiKey();
+    Q_INVOKABLE void testAiConnection(const QString &address, const QString &wireFormat,
+                                      const QString &model, const QString &key);    Q_INVOKABLE QString clipboardUrl() const;
     Q_INVOKABLE QString clipboardText() const;
     Q_INVOKABLE bool editorTextChanged();
     Q_INVOKABLE void setCaretPosition(int position);
@@ -209,6 +225,9 @@ signals:
     void alternativesChanged();
     void alternativeFlipped(bool landedOnOriginal);
     void pointerChanged();
+    void aiSettingsChanged();
+    void aiTestingChanged();
+    void aiTestFinished(bool success, const QString &message);
 
 private:
     friend class WriteCamTest;
@@ -219,12 +238,17 @@ private:
         QStringList tags;
         QString error;
     };
+    struct AiTestResult {
+        bool success = false;
+        QString message;
+    };
 
     void loadDocumentText(const QString &text);
     void updateFrontMatterOnSave(bool creatingNewFile, const QString &fallbackTitle,
                                  const QStringList &newTags);
     void tagDocument();
     void finishTagRequest();
+    void finishAiTest();
     void replaceDocumentText(const QString &from, const QString &to);
     void updateDirtyStateForText(const QString &text);
     struct EditSnapshot {
@@ -283,6 +307,8 @@ private:
     bool m_tagRequestActive = false;
     bool m_tagAgain = false;
     QFutureWatcher<TagDecision> m_tagWatcher;
+    bool m_aiTestActive = false;
+    QFutureWatcher<AiTestResult> m_aiTestWatcher;
 
     QUrl m_fileUrl;
     bool m_modified = false;

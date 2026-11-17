@@ -60,6 +60,19 @@ Item {
                 context.lineTo(13, 13.5);
                 context.moveTo(5, 9.5);
                 context.lineTo(11, 9.5);
+            } else if (control.iconName === "settings") {
+                context.moveTo(2.5, 4.5);
+                context.lineTo(13.5, 4.5);
+                context.moveTo(2.5, 8);
+                context.lineTo(13.5, 8);
+                context.moveTo(2.5, 11.5);
+                context.lineTo(13.5, 11.5);
+                context.moveTo(6, 2.8);
+                context.lineTo(6, 6.2);
+                context.moveTo(10.5, 6.3);
+                context.lineTo(10.5, 9.7);
+                context.moveTo(5, 10);
+                context.lineTo(5, 13.2);
             } else {
                 context.moveTo(2.5, 13);
                 context.lineTo(2.5, 3.5);
