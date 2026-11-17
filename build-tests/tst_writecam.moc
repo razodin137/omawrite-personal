@@ -1,0 +1,745 @@
+/****************************************************************************
+** Meta object code from reading C++ file 'tst_writecam.cpp'
+**
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.12.0)
+**
+** WARNING! All changes made in this file will be lost!
+*****************************************************************************/
+
+#include <QtCore/qmetatype.h>
+
+#include <QtCore/qtmochelpers.h>
+
+#include <memory>
+
+
+#include <QtCore/qxptype_traits.h>
+#if !defined(Q_MOC_OUTPUT_REVISION)
+#error "The header file 'tst_writecam.cpp' doesn't include <QObject>."
+#elif Q_MOC_OUTPUT_REVISION != 69
+#error "This file was generated using the moc from 6.12.0. It"
+#error "cannot be used with the include files from this version of Qt."
+#error "(The moc has changed too much.)"
+#endif
+
+#ifndef Q_CONSTINIT
+#define Q_CONSTINIT
+#endif
+
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_DEPRECATED
+QT_WARNING_DISABLE_GCC("-Wuseless-cast")
+namespace {
+struct qt_meta_tag_ZN18FakeDecisionServerE_t {};
+} // unnamed namespace
+
+template <> constexpr inline auto FakeDecisionServer::qt_create_metaobjectdata<qt_meta_tag_ZN18FakeDecisionServerE_t>()
+{
+    namespace QMC = QtMocConstants;
+    QtMocHelpers::StringRefStorage qt_stringData {
+        "FakeDecisionServer"
+    };
+
+    QtMocHelpers::UintData qt_methods {
+    };
+    QtMocHelpers::UintData qt_properties {
+    };
+    QtMocHelpers::UintData qt_enums {
+    };
+    return QtMocHelpers::metaObjectData<FakeDecisionServer, qt_meta_tag_ZN18FakeDecisionServerE_t>(QMC::MetaObjectFlag{}, qt_stringData,
+            qt_methods, qt_properties, qt_enums);
+}
+Q_CONSTINIT const QMetaObject FakeDecisionServer::staticMetaObject = { {
+    QMetaObject::SuperData::link<QObject::staticMetaObject>(),
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN18FakeDecisionServerE_t>.stringdata,
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN18FakeDecisionServerE_t>.data,
+    qt_static_metacall,
+    nullptr,
+    qt_staticMetaObjectRelocatingContent<qt_meta_tag_ZN18FakeDecisionServerE_t>.metaTypes,
+    nullptr
+} };
+
+void FakeDecisionServer::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    auto *_t = static_cast<FakeDecisionServer *>(_o);
+    (void)_t;
+    (void)_c;
+    (void)_id;
+    (void)_a;
+}
+
+const QMetaObject *FakeDecisionServer::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *FakeDecisionServer::qt_metacast(const char *_clname)
+{
+    if (!_clname) return nullptr;
+    if (!strcmp(_clname, qt_staticMetaObjectStaticContent<qt_meta_tag_ZN18FakeDecisionServerE_t>.strings))
+        return static_cast<void*>(this);
+    return QObject::qt_metacast(_clname);
+}
+
+int FakeDecisionServer::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    return _id;
+}
+namespace {
+struct qt_meta_tag_ZN12WriteCamTestE_t {};
+} // unnamed namespace
+
+template <> constexpr inline auto WriteCamTest::qt_create_metaobjectdata<qt_meta_tag_ZN12WriteCamTestE_t>()
+{
+    namespace QMC = QtMocConstants;
+    QtMocHelpers::StringRefStorage qt_stringData {
+        "WriteCamTest",
+        "initTestCase",
+        "",
+        "countsWords",
+        "searchIgnoresDiacriticsTheQueryLeavesOut",
+        "restylesTheWholeDocumentWithItsLayoutFinished",
+        "normalizesLinks",
+        "suggestsSafeNames",
+        "answersHelpBeforeOpeningAWindow",
+        "printsInPointsNotPixels",
+        "keepsNotoFromCrowdingTheFontList",
+        "remembersEditorFont",
+        "findsStrikethroughOutsideCode",
+        "undoesAnEditInOneStep",
+        "keepsLineHeightAcrossUndoAndPaste",
+        "searchFollowsEditsWithoutTakingTheCaret",
+        "replacesOneMatchAfterAnother",
+        "countsWordsAfterEditsWithoutBlocking",
+        "searchWaitsForTypingToPause",
+        "reopeningTheFindBarSearchesForWhatItHolds",
+        "reachesAndLeavesTheReplaceFieldFromTheKeyboard",
+        "keepsShortcutsBehindDialogs",
+        "togglesTheFontPickerFromItsButton",
+        "breaksLinesAfterInlineBackticks",
+        "togglesEmphasisAtTheCaret",
+        "togglesEmphasisMarkers",
+        "findsInlineMarkdownRanges",
+        "findsLinkUrlAtPosition",
+        "showsLinkUrlOnlyOverTheLinkText",
+        "showsLinkTooltipUrlAsPlainText",
+        "leavesInlineCodeLiteral",
+        "keepsIntrawordUnderscoresLiteral",
+        "respectsEscapedOpeningBackticks",
+        "keepsEnclosedCodeStyling_data",
+        "keepsEnclosedCodeStyling",
+        "leavesFencedCodeLiteral",
+        "opensFencesOnlyWhereMarkdownDoes",
+        "hidesNoMarkersInsideCode",
+        "showsMarkersAroundTheCaret",
+        "takesTheCodePanelFromTheTheme",
+        "rendersBoldItalicRuns",
+        "hidesMarkersInsideNestedMarkup",
+        "honoursBackslashEscapes",
+        "leavesThematicBreaksAlone",
+        "mergesInlineStylesWithTheBlock",
+        "recognisesTildeFences",
+        "readsLinkDestinationsWithParentheses",
+        "reportsThemeChangesOnlyWhenTheyHappen",
+        "ignoresInlineMarkdownInsideCodeSpans",
+        "keepsMarkupThatEnclosesACodeSpan",
+        "stylesAnEnclosedCodeSpanAsCode",
+        "keepsWhitespaceDelimitedAsterisksLiteral",
+        "loadsCurrentOmarchyTheme",
+        "fallsBackForSelectionColors_data",
+        "fallsBackForSelectionColors",
+        "readsTomlValuesPastInlineComments",
+        "keepsDefaultsForColorsItCannotParse",
+        "takesItsDefaultsFromTheModeTheThemeAsksFor",
+        "ignoresFileWatcherEventsForSavedContents",
+        "keepsCursorAndSelectionStableAcrossInsertions",
+        "stepsOverWholeCharactersWhenTypingAndSaving",
+        "stepsCursorByWholeGraphemeClusters",
+        "savesAndOpensFromFooterButtons",
+        "copiesRenderedHtml",
+        "flashesScrollBarOnlyWhenPaging",
+        "breaksLinesOnReturn",
+        "nestsListItemsOnTab",
+        "closesParagraphBreaksOnBackspace",
+        "unsavedChangesDialogSupportsAltMnemonics",
+        "scalesTextWithDesktopTextSize",
+        "stepsTextSizeOnTopOfTheDesktopScale",
+        "banksTouchpadScrollBeforeChangingTextSize",
+        "growsTextFromEitherPlusKey",
+        "keepsTextColumnInsideNarrowWindows",
+        "shortcutsDialogHasNoBindingLoop",
+        "shortcutReferenceFitsTheWindow_data",
+        "shortcutReferenceFitsTheWindow",
+        "remembersLastSaveDirectory",
+        "autoSavesTitledDocumentsAfterEdits",
+        "doesNotAutoSaveUntitledDocuments",
+        "holdsAutoSaveWhenTheFileChangesElsewhere",
+        "checksTheFileBeforeEachAutoSave",
+        "resumesAutoSaveOnlyAfterAnExplicitSave",
+        "resumesAutoSaveAfterReloading",
+        "keepsOtherEncodingsAndLineEndingsOutOfAutoSave",
+        "holdsAutoSaveWhileTheWriterDecides",
+        "startsANamedFileThatIsNotThereYet",
+        "refusesANewFileInAMissingFolder",
+        "namesARelativeFileByItsFullPath",
+        "saysWhenARecoveredDraftKeepsAFileFromOpening",
+        "dropsAPendingCloseWhenItsSaveFails",
+        "savesInAFolderItCannotWriteNewFilesIn",
+        "removesARecoveryDraftItCannotRead",
+        "keepsWatchingAFileReplacedFromOutside",
+        "keepsTheWritersTextWhenTheChangeDialogIsDismissed",
+        "opensAnExistingFileFromTheCommandLine",
+        "keepsDiscardedChangesOutOfTheFile",
+        "forgetsTheSavedTextWhenTheFileChangedUnseen",
+        "doesNotAutoSaveARecoveredDraftOverItsFile",
+        "revertsEmptyDocumentToCleanState",
+        "revertsSavedDocumentToCleanState",
+        "keepsADocumentUnsavedAfterItsFileDisappears",
+        "treatsAFileRemovedAndWrittenAgainAsChanged",
+        "noticesARemovedFileComingBack",
+        "hidesReloadWhileTheFileIsRemoved",
+        "addsFrontMatterToNewDocuments",
+        "slugsTitlesForFrontMatter",
+        "leavesDocumentsWithoutFrontMatterAlone",
+        "appendsEverySaveToTheUpdatedLog",
+        "keepsEveryFrontMatterFieldAsWritten",
+        "derivesTitlesFromTheFirstContent",
+        "quotesTrickyYamlScalars",
+        "savesFrontMatterThroughTheEditor",
+        "startsTheLogOnOpenedFilesWithoutOne",
+        "keepsAlternativesAndGhostsInATrailingComment",
+        "writesNoCommentWhenThereIsNothingToKeep",
+        "keepsAlternativesWhoseWordsSurvivedAnOutsideEdit",
+        "opensAndSavesAlternativesThroughTheEditor",
+        "dropsAlternativesGoneFromTheFileOnReload",
+        "savesPlainFilesWithoutAWriteCamComment",
+        "roundTripsABodyWithoutATrailingNewline",
+        "widensASelectionToTheLargestScopeItCovers",
+        "makesAlternativesAtTheLargestScopeAndUndoesTheNesting",
+        "rendersFlipTonesInCode",
+        "flippingVersionsAsksForHigherAndLowerTones",
+        "whichVersionShowsIsNotAnUndoStep",
+        "savesAndOpensTheScopeOfAnAlternative",
+        "makesAndUndoesAlternativesThroughTheEditor",
+        "underlinesAlternativeRunsWithAWavyPenLine",
+        "flipsThePointedAlternativeWithTheArrowKeys",
+        "tintsThePointedRunUntilTypingTakesThePointerBack",
+        "editsAlternativeVersionsInThePanel",
+        "movesThroughThePanelRowsWithoutWrapping",
+        "keepsTheAlternativesPanelOutOfTheWritingColumn",
+        "readsLanguageModelSettingsFromTheEnvironment",
+        "keepsTheLanguageModelKeyOutOfTheInterface",
+        "talksTheChosenWireFormat",
+        "testsTheLanguageModelConnection",
+        "savesAndTestsTheLanguageModelFromTheBackend",
+        "opensSettingsFromTheFooter",
+        "parsesTagSchemas",
+        "keepsTheTagSchemaEditable",
+        "buildsDecisionRequests",
+        "derivesTagsFromAnswers",
+        "decidesTagsOverTheWire",
+        "mergesTagsIntoFrontMatter",
+        "tagsNewSavesThroughTheEditor",
+        "taggingNeverHoldsUpASave"
+    };
+
+    QtMocHelpers::UintData qt_methods {
+        // Slot 'initTestCase'
+        QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'countsWords'
+        QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'searchIgnoresDiacriticsTheQueryLeavesOut'
+        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'restylesTheWholeDocumentWithItsLayoutFinished'
+        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'normalizesLinks'
+        QtMocHelpers::SlotData<void()>(6, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'suggestsSafeNames'
+        QtMocHelpers::SlotData<void()>(7, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'answersHelpBeforeOpeningAWindow'
+        QtMocHelpers::SlotData<void()>(8, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'printsInPointsNotPixels'
+        QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsNotoFromCrowdingTheFontList'
+        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'remembersEditorFont'
+        QtMocHelpers::SlotData<void()>(11, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'findsStrikethroughOutsideCode'
+        QtMocHelpers::SlotData<void()>(12, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'undoesAnEditInOneStep'
+        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsLineHeightAcrossUndoAndPaste'
+        QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'searchFollowsEditsWithoutTakingTheCaret'
+        QtMocHelpers::SlotData<void()>(15, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'replacesOneMatchAfterAnother'
+        QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'countsWordsAfterEditsWithoutBlocking'
+        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'searchWaitsForTypingToPause'
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'reopeningTheFindBarSearchesForWhatItHolds'
+        QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'reachesAndLeavesTheReplaceFieldFromTheKeyboard'
+        QtMocHelpers::SlotData<void()>(20, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsShortcutsBehindDialogs'
+        QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'togglesTheFontPickerFromItsButton'
+        QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'breaksLinesAfterInlineBackticks'
+        QtMocHelpers::SlotData<void()>(23, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'togglesEmphasisAtTheCaret'
+        QtMocHelpers::SlotData<void()>(24, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'togglesEmphasisMarkers'
+        QtMocHelpers::SlotData<void()>(25, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'findsInlineMarkdownRanges'
+        QtMocHelpers::SlotData<void()>(26, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'findsLinkUrlAtPosition'
+        QtMocHelpers::SlotData<void()>(27, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'showsLinkUrlOnlyOverTheLinkText'
+        QtMocHelpers::SlotData<void()>(28, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'showsLinkTooltipUrlAsPlainText'
+        QtMocHelpers::SlotData<void()>(29, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'leavesInlineCodeLiteral'
+        QtMocHelpers::SlotData<void()>(30, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsIntrawordUnderscoresLiteral'
+        QtMocHelpers::SlotData<void()>(31, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'respectsEscapedOpeningBackticks'
+        QtMocHelpers::SlotData<void()>(32, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsEnclosedCodeStyling_data'
+        QtMocHelpers::SlotData<void()>(33, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsEnclosedCodeStyling'
+        QtMocHelpers::SlotData<void()>(34, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'leavesFencedCodeLiteral'
+        QtMocHelpers::SlotData<void()>(35, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'opensFencesOnlyWhereMarkdownDoes'
+        QtMocHelpers::SlotData<void()>(36, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'hidesNoMarkersInsideCode'
+        QtMocHelpers::SlotData<void()>(37, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'showsMarkersAroundTheCaret'
+        QtMocHelpers::SlotData<void()>(38, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'takesTheCodePanelFromTheTheme'
+        QtMocHelpers::SlotData<void()>(39, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'rendersBoldItalicRuns'
+        QtMocHelpers::SlotData<void()>(40, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'hidesMarkersInsideNestedMarkup'
+        QtMocHelpers::SlotData<void()>(41, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'honoursBackslashEscapes'
+        QtMocHelpers::SlotData<void()>(42, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'leavesThematicBreaksAlone'
+        QtMocHelpers::SlotData<void()>(43, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'mergesInlineStylesWithTheBlock'
+        QtMocHelpers::SlotData<void()>(44, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'recognisesTildeFences'
+        QtMocHelpers::SlotData<void()>(45, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'readsLinkDestinationsWithParentheses'
+        QtMocHelpers::SlotData<void()>(46, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'reportsThemeChangesOnlyWhenTheyHappen'
+        QtMocHelpers::SlotData<void()>(47, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'ignoresInlineMarkdownInsideCodeSpans'
+        QtMocHelpers::SlotData<void()>(48, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsMarkupThatEnclosesACodeSpan'
+        QtMocHelpers::SlotData<void()>(49, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'stylesAnEnclosedCodeSpanAsCode'
+        QtMocHelpers::SlotData<void()>(50, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsWhitespaceDelimitedAsterisksLiteral'
+        QtMocHelpers::SlotData<void()>(51, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'loadsCurrentOmarchyTheme'
+        QtMocHelpers::SlotData<void()>(52, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'fallsBackForSelectionColors_data'
+        QtMocHelpers::SlotData<void()>(53, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'fallsBackForSelectionColors'
+        QtMocHelpers::SlotData<void()>(54, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'readsTomlValuesPastInlineComments'
+        QtMocHelpers::SlotData<void()>(55, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsDefaultsForColorsItCannotParse'
+        QtMocHelpers::SlotData<void()>(56, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'takesItsDefaultsFromTheModeTheThemeAsksFor'
+        QtMocHelpers::SlotData<void()>(57, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'ignoresFileWatcherEventsForSavedContents'
+        QtMocHelpers::SlotData<void()>(58, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsCursorAndSelectionStableAcrossInsertions'
+        QtMocHelpers::SlotData<void()>(59, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'stepsOverWholeCharactersWhenTypingAndSaving'
+        QtMocHelpers::SlotData<void()>(60, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'stepsCursorByWholeGraphemeClusters'
+        QtMocHelpers::SlotData<void()>(61, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'savesAndOpensFromFooterButtons'
+        QtMocHelpers::SlotData<void()>(62, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'copiesRenderedHtml'
+        QtMocHelpers::SlotData<void()>(63, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'flashesScrollBarOnlyWhenPaging'
+        QtMocHelpers::SlotData<void()>(64, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'breaksLinesOnReturn'
+        QtMocHelpers::SlotData<void()>(65, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'nestsListItemsOnTab'
+        QtMocHelpers::SlotData<void()>(66, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'closesParagraphBreaksOnBackspace'
+        QtMocHelpers::SlotData<void()>(67, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'unsavedChangesDialogSupportsAltMnemonics'
+        QtMocHelpers::SlotData<void()>(68, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'scalesTextWithDesktopTextSize'
+        QtMocHelpers::SlotData<void()>(69, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'stepsTextSizeOnTopOfTheDesktopScale'
+        QtMocHelpers::SlotData<void()>(70, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'banksTouchpadScrollBeforeChangingTextSize'
+        QtMocHelpers::SlotData<void()>(71, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'growsTextFromEitherPlusKey'
+        QtMocHelpers::SlotData<void()>(72, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsTextColumnInsideNarrowWindows'
+        QtMocHelpers::SlotData<void()>(73, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'shortcutsDialogHasNoBindingLoop'
+        QtMocHelpers::SlotData<void()>(74, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'shortcutReferenceFitsTheWindow_data'
+        QtMocHelpers::SlotData<void()>(75, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'shortcutReferenceFitsTheWindow'
+        QtMocHelpers::SlotData<void()>(76, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'remembersLastSaveDirectory'
+        QtMocHelpers::SlotData<void()>(77, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'autoSavesTitledDocumentsAfterEdits'
+        QtMocHelpers::SlotData<void()>(78, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'doesNotAutoSaveUntitledDocuments'
+        QtMocHelpers::SlotData<void()>(79, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'holdsAutoSaveWhenTheFileChangesElsewhere'
+        QtMocHelpers::SlotData<void()>(80, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'checksTheFileBeforeEachAutoSave'
+        QtMocHelpers::SlotData<void()>(81, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'resumesAutoSaveOnlyAfterAnExplicitSave'
+        QtMocHelpers::SlotData<void()>(82, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'resumesAutoSaveAfterReloading'
+        QtMocHelpers::SlotData<void()>(83, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsOtherEncodingsAndLineEndingsOutOfAutoSave'
+        QtMocHelpers::SlotData<void()>(84, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'holdsAutoSaveWhileTheWriterDecides'
+        QtMocHelpers::SlotData<void()>(85, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'startsANamedFileThatIsNotThereYet'
+        QtMocHelpers::SlotData<void()>(86, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'refusesANewFileInAMissingFolder'
+        QtMocHelpers::SlotData<void()>(87, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'namesARelativeFileByItsFullPath'
+        QtMocHelpers::SlotData<void()>(88, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'saysWhenARecoveredDraftKeepsAFileFromOpening'
+        QtMocHelpers::SlotData<void()>(89, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'dropsAPendingCloseWhenItsSaveFails'
+        QtMocHelpers::SlotData<void()>(90, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'savesInAFolderItCannotWriteNewFilesIn'
+        QtMocHelpers::SlotData<void()>(91, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'removesARecoveryDraftItCannotRead'
+        QtMocHelpers::SlotData<void()>(92, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsWatchingAFileReplacedFromOutside'
+        QtMocHelpers::SlotData<void()>(93, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsTheWritersTextWhenTheChangeDialogIsDismissed'
+        QtMocHelpers::SlotData<void()>(94, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'opensAnExistingFileFromTheCommandLine'
+        QtMocHelpers::SlotData<void()>(95, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsDiscardedChangesOutOfTheFile'
+        QtMocHelpers::SlotData<void()>(96, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'forgetsTheSavedTextWhenTheFileChangedUnseen'
+        QtMocHelpers::SlotData<void()>(97, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'doesNotAutoSaveARecoveredDraftOverItsFile'
+        QtMocHelpers::SlotData<void()>(98, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'revertsEmptyDocumentToCleanState'
+        QtMocHelpers::SlotData<void()>(99, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'revertsSavedDocumentToCleanState'
+        QtMocHelpers::SlotData<void()>(100, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsADocumentUnsavedAfterItsFileDisappears'
+        QtMocHelpers::SlotData<void()>(101, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'treatsAFileRemovedAndWrittenAgainAsChanged'
+        QtMocHelpers::SlotData<void()>(102, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'noticesARemovedFileComingBack'
+        QtMocHelpers::SlotData<void()>(103, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'hidesReloadWhileTheFileIsRemoved'
+        QtMocHelpers::SlotData<void()>(104, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'addsFrontMatterToNewDocuments'
+        QtMocHelpers::SlotData<void()>(105, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'slugsTitlesForFrontMatter'
+        QtMocHelpers::SlotData<void()>(106, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'leavesDocumentsWithoutFrontMatterAlone'
+        QtMocHelpers::SlotData<void()>(107, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'appendsEverySaveToTheUpdatedLog'
+        QtMocHelpers::SlotData<void()>(108, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsEveryFrontMatterFieldAsWritten'
+        QtMocHelpers::SlotData<void()>(109, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'derivesTitlesFromTheFirstContent'
+        QtMocHelpers::SlotData<void()>(110, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'quotesTrickyYamlScalars'
+        QtMocHelpers::SlotData<void()>(111, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'savesFrontMatterThroughTheEditor'
+        QtMocHelpers::SlotData<void()>(112, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'startsTheLogOnOpenedFilesWithoutOne'
+        QtMocHelpers::SlotData<void()>(113, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsAlternativesAndGhostsInATrailingComment'
+        QtMocHelpers::SlotData<void()>(114, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'writesNoCommentWhenThereIsNothingToKeep'
+        QtMocHelpers::SlotData<void()>(115, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsAlternativesWhoseWordsSurvivedAnOutsideEdit'
+        QtMocHelpers::SlotData<void()>(116, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'opensAndSavesAlternativesThroughTheEditor'
+        QtMocHelpers::SlotData<void()>(117, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'dropsAlternativesGoneFromTheFileOnReload'
+        QtMocHelpers::SlotData<void()>(118, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'savesPlainFilesWithoutAWriteCamComment'
+        QtMocHelpers::SlotData<void()>(119, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'roundTripsABodyWithoutATrailingNewline'
+        QtMocHelpers::SlotData<void()>(120, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'widensASelectionToTheLargestScopeItCovers'
+        QtMocHelpers::SlotData<void()>(121, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'makesAlternativesAtTheLargestScopeAndUndoesTheNesting'
+        QtMocHelpers::SlotData<void()>(122, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'rendersFlipTonesInCode'
+        QtMocHelpers::SlotData<void()>(123, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'flippingVersionsAsksForHigherAndLowerTones'
+        QtMocHelpers::SlotData<void()>(124, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'whichVersionShowsIsNotAnUndoStep'
+        QtMocHelpers::SlotData<void()>(125, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'savesAndOpensTheScopeOfAnAlternative'
+        QtMocHelpers::SlotData<void()>(126, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'makesAndUndoesAlternativesThroughTheEditor'
+        QtMocHelpers::SlotData<void()>(127, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'underlinesAlternativeRunsWithAWavyPenLine'
+        QtMocHelpers::SlotData<void()>(128, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'flipsThePointedAlternativeWithTheArrowKeys'
+        QtMocHelpers::SlotData<void()>(129, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'tintsThePointedRunUntilTypingTakesThePointerBack'
+        QtMocHelpers::SlotData<void()>(130, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'editsAlternativeVersionsInThePanel'
+        QtMocHelpers::SlotData<void()>(131, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'movesThroughThePanelRowsWithoutWrapping'
+        QtMocHelpers::SlotData<void()>(132, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsTheAlternativesPanelOutOfTheWritingColumn'
+        QtMocHelpers::SlotData<void()>(133, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'readsLanguageModelSettingsFromTheEnvironment'
+        QtMocHelpers::SlotData<void()>(134, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsTheLanguageModelKeyOutOfTheInterface'
+        QtMocHelpers::SlotData<void()>(135, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'talksTheChosenWireFormat'
+        QtMocHelpers::SlotData<void()>(136, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'testsTheLanguageModelConnection'
+        QtMocHelpers::SlotData<void()>(137, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'savesAndTestsTheLanguageModelFromTheBackend'
+        QtMocHelpers::SlotData<void()>(138, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'opensSettingsFromTheFooter'
+        QtMocHelpers::SlotData<void()>(139, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'parsesTagSchemas'
+        QtMocHelpers::SlotData<void()>(140, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'keepsTheTagSchemaEditable'
+        QtMocHelpers::SlotData<void()>(141, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'buildsDecisionRequests'
+        QtMocHelpers::SlotData<void()>(142, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'derivesTagsFromAnswers'
+        QtMocHelpers::SlotData<void()>(143, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'decidesTagsOverTheWire'
+        QtMocHelpers::SlotData<void()>(144, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'mergesTagsIntoFrontMatter'
+        QtMocHelpers::SlotData<void()>(145, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'tagsNewSavesThroughTheEditor'
+        QtMocHelpers::SlotData<void()>(146, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'taggingNeverHoldsUpASave'
+        QtMocHelpers::SlotData<void()>(147, 2, QMC::AccessPrivate, QMetaType::Void),
+    };
+    QtMocHelpers::UintData qt_properties {
+    };
+    QtMocHelpers::UintData qt_enums {
+    };
+    return QtMocHelpers::metaObjectData<WriteCamTest, qt_meta_tag_ZN12WriteCamTestE_t>(QMC::MetaObjectFlag{}, qt_stringData,
+            qt_methods, qt_properties, qt_enums);
+}
+Q_CONSTINIT const QMetaObject WriteCamTest::staticMetaObject = { {
+    QMetaObject::SuperData::link<QObject::staticMetaObject>(),
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN12WriteCamTestE_t>.stringdata,
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN12WriteCamTestE_t>.data,
+    qt_static_metacall,
+    nullptr,
+    qt_staticMetaObjectRelocatingContent<qt_meta_tag_ZN12WriteCamTestE_t>.metaTypes,
+    nullptr
+} };
+
+void WriteCamTest::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    auto *_t = static_cast<WriteCamTest *>(_o);
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        switch (_id) {
+        case 0: _t->initTestCase(); break;
+        case 1: _t->countsWords(); break;
+        case 2: _t->searchIgnoresDiacriticsTheQueryLeavesOut(); break;
+        case 3: _t->restylesTheWholeDocumentWithItsLayoutFinished(); break;
+        case 4: _t->normalizesLinks(); break;
+        case 5: _t->suggestsSafeNames(); break;
+        case 6: _t->answersHelpBeforeOpeningAWindow(); break;
+        case 7: _t->printsInPointsNotPixels(); break;
+        case 8: _t->keepsNotoFromCrowdingTheFontList(); break;
+        case 9: _t->remembersEditorFont(); break;
+        case 10: _t->findsStrikethroughOutsideCode(); break;
+        case 11: _t->undoesAnEditInOneStep(); break;
+        case 12: _t->keepsLineHeightAcrossUndoAndPaste(); break;
+        case 13: _t->searchFollowsEditsWithoutTakingTheCaret(); break;
+        case 14: _t->replacesOneMatchAfterAnother(); break;
+        case 15: _t->countsWordsAfterEditsWithoutBlocking(); break;
+        case 16: _t->searchWaitsForTypingToPause(); break;
+        case 17: _t->reopeningTheFindBarSearchesForWhatItHolds(); break;
+        case 18: _t->reachesAndLeavesTheReplaceFieldFromTheKeyboard(); break;
+        case 19: _t->keepsShortcutsBehindDialogs(); break;
+        case 20: _t->togglesTheFontPickerFromItsButton(); break;
+        case 21: _t->breaksLinesAfterInlineBackticks(); break;
+        case 22: _t->togglesEmphasisAtTheCaret(); break;
+        case 23: _t->togglesEmphasisMarkers(); break;
+        case 24: _t->findsInlineMarkdownRanges(); break;
+        case 25: _t->findsLinkUrlAtPosition(); break;
+        case 26: _t->showsLinkUrlOnlyOverTheLinkText(); break;
+        case 27: _t->showsLinkTooltipUrlAsPlainText(); break;
+        case 28: _t->leavesInlineCodeLiteral(); break;
+        case 29: _t->keepsIntrawordUnderscoresLiteral(); break;
+        case 30: _t->respectsEscapedOpeningBackticks(); break;
+        case 31: _t->keepsEnclosedCodeStyling_data(); break;
+        case 32: _t->keepsEnclosedCodeStyling(); break;
+        case 33: _t->leavesFencedCodeLiteral(); break;
+        case 34: _t->opensFencesOnlyWhereMarkdownDoes(); break;
+        case 35: _t->hidesNoMarkersInsideCode(); break;
+        case 36: _t->showsMarkersAroundTheCaret(); break;
+        case 37: _t->takesTheCodePanelFromTheTheme(); break;
+        case 38: _t->rendersBoldItalicRuns(); break;
+        case 39: _t->hidesMarkersInsideNestedMarkup(); break;
+        case 40: _t->honoursBackslashEscapes(); break;
+        case 41: _t->leavesThematicBreaksAlone(); break;
+        case 42: _t->mergesInlineStylesWithTheBlock(); break;
+        case 43: _t->recognisesTildeFences(); break;
+        case 44: _t->readsLinkDestinationsWithParentheses(); break;
+        case 45: _t->reportsThemeChangesOnlyWhenTheyHappen(); break;
+        case 46: _t->ignoresInlineMarkdownInsideCodeSpans(); break;
+        case 47: _t->keepsMarkupThatEnclosesACodeSpan(); break;
+        case 48: _t->stylesAnEnclosedCodeSpanAsCode(); break;
+        case 49: _t->keepsWhitespaceDelimitedAsterisksLiteral(); break;
+        case 50: _t->loadsCurrentOmarchyTheme(); break;
+        case 51: _t->fallsBackForSelectionColors_data(); break;
+        case 52: _t->fallsBackForSelectionColors(); break;
+        case 53: _t->readsTomlValuesPastInlineComments(); break;
+        case 54: _t->keepsDefaultsForColorsItCannotParse(); break;
+        case 55: _t->takesItsDefaultsFromTheModeTheThemeAsksFor(); break;
+        case 56: _t->ignoresFileWatcherEventsForSavedContents(); break;
+        case 57: _t->keepsCursorAndSelectionStableAcrossInsertions(); break;
+        case 58: _t->stepsOverWholeCharactersWhenTypingAndSaving(); break;
+        case 59: _t->stepsCursorByWholeGraphemeClusters(); break;
+        case 60: _t->savesAndOpensFromFooterButtons(); break;
+        case 61: _t->copiesRenderedHtml(); break;
+        case 62: _t->flashesScrollBarOnlyWhenPaging(); break;
+        case 63: _t->breaksLinesOnReturn(); break;
+        case 64: _t->nestsListItemsOnTab(); break;
+        case 65: _t->closesParagraphBreaksOnBackspace(); break;
+        case 66: _t->unsavedChangesDialogSupportsAltMnemonics(); break;
+        case 67: _t->scalesTextWithDesktopTextSize(); break;
+        case 68: _t->stepsTextSizeOnTopOfTheDesktopScale(); break;
+        case 69: _t->banksTouchpadScrollBeforeChangingTextSize(); break;
+        case 70: _t->growsTextFromEitherPlusKey(); break;
+        case 71: _t->keepsTextColumnInsideNarrowWindows(); break;
+        case 72: _t->shortcutsDialogHasNoBindingLoop(); break;
+        case 73: _t->shortcutReferenceFitsTheWindow_data(); break;
+        case 74: _t->shortcutReferenceFitsTheWindow(); break;
+        case 75: _t->remembersLastSaveDirectory(); break;
+        case 76: _t->autoSavesTitledDocumentsAfterEdits(); break;
+        case 77: _t->doesNotAutoSaveUntitledDocuments(); break;
+        case 78: _t->holdsAutoSaveWhenTheFileChangesElsewhere(); break;
+        case 79: _t->checksTheFileBeforeEachAutoSave(); break;
+        case 80: _t->resumesAutoSaveOnlyAfterAnExplicitSave(); break;
+        case 81: _t->resumesAutoSaveAfterReloading(); break;
+        case 82: _t->keepsOtherEncodingsAndLineEndingsOutOfAutoSave(); break;
+        case 83: _t->holdsAutoSaveWhileTheWriterDecides(); break;
+        case 84: _t->startsANamedFileThatIsNotThereYet(); break;
+        case 85: _t->refusesANewFileInAMissingFolder(); break;
+        case 86: _t->namesARelativeFileByItsFullPath(); break;
+        case 87: _t->saysWhenARecoveredDraftKeepsAFileFromOpening(); break;
+        case 88: _t->dropsAPendingCloseWhenItsSaveFails(); break;
+        case 89: _t->savesInAFolderItCannotWriteNewFilesIn(); break;
+        case 90: _t->removesARecoveryDraftItCannotRead(); break;
+        case 91: _t->keepsWatchingAFileReplacedFromOutside(); break;
+        case 92: _t->keepsTheWritersTextWhenTheChangeDialogIsDismissed(); break;
+        case 93: _t->opensAnExistingFileFromTheCommandLine(); break;
+        case 94: _t->keepsDiscardedChangesOutOfTheFile(); break;
+        case 95: _t->forgetsTheSavedTextWhenTheFileChangedUnseen(); break;
+        case 96: _t->doesNotAutoSaveARecoveredDraftOverItsFile(); break;
+        case 97: _t->revertsEmptyDocumentToCleanState(); break;
+        case 98: _t->revertsSavedDocumentToCleanState(); break;
+        case 99: _t->keepsADocumentUnsavedAfterItsFileDisappears(); break;
+        case 100: _t->treatsAFileRemovedAndWrittenAgainAsChanged(); break;
+        case 101: _t->noticesARemovedFileComingBack(); break;
+        case 102: _t->hidesReloadWhileTheFileIsRemoved(); break;
+        case 103: _t->addsFrontMatterToNewDocuments(); break;
+        case 104: _t->slugsTitlesForFrontMatter(); break;
+        case 105: _t->leavesDocumentsWithoutFrontMatterAlone(); break;
+        case 106: _t->appendsEverySaveToTheUpdatedLog(); break;
+        case 107: _t->keepsEveryFrontMatterFieldAsWritten(); break;
+        case 108: _t->derivesTitlesFromTheFirstContent(); break;
+        case 109: _t->quotesTrickyYamlScalars(); break;
+        case 110: _t->savesFrontMatterThroughTheEditor(); break;
+        case 111: _t->startsTheLogOnOpenedFilesWithoutOne(); break;
+        case 112: _t->keepsAlternativesAndGhostsInATrailingComment(); break;
+        case 113: _t->writesNoCommentWhenThereIsNothingToKeep(); break;
+        case 114: _t->keepsAlternativesWhoseWordsSurvivedAnOutsideEdit(); break;
+        case 115: _t->opensAndSavesAlternativesThroughTheEditor(); break;
+        case 116: _t->dropsAlternativesGoneFromTheFileOnReload(); break;
+        case 117: _t->savesPlainFilesWithoutAWriteCamComment(); break;
+        case 118: _t->roundTripsABodyWithoutATrailingNewline(); break;
+        case 119: _t->widensASelectionToTheLargestScopeItCovers(); break;
+        case 120: _t->makesAlternativesAtTheLargestScopeAndUndoesTheNesting(); break;
+        case 121: _t->rendersFlipTonesInCode(); break;
+        case 122: _t->flippingVersionsAsksForHigherAndLowerTones(); break;
+        case 123: _t->whichVersionShowsIsNotAnUndoStep(); break;
+        case 124: _t->savesAndOpensTheScopeOfAnAlternative(); break;
+        case 125: _t->makesAndUndoesAlternativesThroughTheEditor(); break;
+        case 126: _t->underlinesAlternativeRunsWithAWavyPenLine(); break;
+        case 127: _t->flipsThePointedAlternativeWithTheArrowKeys(); break;
+        case 128: _t->tintsThePointedRunUntilTypingTakesThePointerBack(); break;
+        case 129: _t->editsAlternativeVersionsInThePanel(); break;
+        case 130: _t->movesThroughThePanelRowsWithoutWrapping(); break;
+        case 131: _t->keepsTheAlternativesPanelOutOfTheWritingColumn(); break;
+        case 132: _t->readsLanguageModelSettingsFromTheEnvironment(); break;
+        case 133: _t->keepsTheLanguageModelKeyOutOfTheInterface(); break;
+        case 134: _t->talksTheChosenWireFormat(); break;
+        case 135: _t->testsTheLanguageModelConnection(); break;
+        case 136: _t->savesAndTestsTheLanguageModelFromTheBackend(); break;
+        case 137: _t->opensSettingsFromTheFooter(); break;
+        case 138: _t->parsesTagSchemas(); break;
+        case 139: _t->keepsTheTagSchemaEditable(); break;
+        case 140: _t->buildsDecisionRequests(); break;
+        case 141: _t->derivesTagsFromAnswers(); break;
+        case 142: _t->decidesTagsOverTheWire(); break;
+        case 143: _t->mergesTagsIntoFrontMatter(); break;
+        case 144: _t->tagsNewSavesThroughTheEditor(); break;
+        case 145: _t->taggingNeverHoldsUpASave(); break;
+        default: ;
+        }
+    }
+    (void)_a;
+}
+
+const QMetaObject *WriteCamTest::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *WriteCamTest::qt_metacast(const char *_clname)
+{
+    if (!_clname) return nullptr;
+    if (!strcmp(_clname, qt_staticMetaObjectStaticContent<qt_meta_tag_ZN12WriteCamTestE_t>.strings))
+        return static_cast<void*>(this);
+    return QObject::qt_metacast(_clname);
+}
+
+int WriteCamTest::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QObject::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        if (_id < 146)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 146;
+    }
+    if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        if (_id < 146)
+            *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
+        _id -= 146;
+    }
+    return _id;
+}
+QT_WARNING_POP

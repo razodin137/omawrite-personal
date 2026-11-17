@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=WriteCam
+GenericName=Markdown Writer
+Comment=Dead-simple Markdown writing app with YAML front matter
+Exec=writecam %f
+Icon=writecam
+Terminal=false
+Categories=Office;WordProcessor;TextEditor;
+MimeType=text/markdown;text/x-markdown;text/plain;
+Keywords=markdown;write;notes;text;editor;yaml;front matter;
+StartupWMClass=writecam

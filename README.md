@@ -73,8 +73,7 @@ If you are running another Linux distribution (Ubuntu, Fedora, Debian) or prefer
   `Ctrl+scroll` does the same.
 - `Ctrl+Shift+C` copies the rendered document as HTML, with plain text as a fallback.
 - `Ctrl+?`, `Ctrl+/`, or `F1` shows the keyboard shortcut reference.
-- In the unsaved-changes dialog, `Alt+C`, `Alt+D`, and `Alt+S` choose Cancel,
-  Discard, and Save.
+- In the unsaved-changes dialog, `C`, `D`, and `S` choose Cancel, Discard, and Save, with or without `Alt`. `Escape` cancels.
 
 Once a document has been saved to a file, edits are auto-saved to that file a
 moment after you stop typing, so `Ctrl+S` is rarely needed. Untitled drafts are
@@ -143,6 +142,8 @@ WriteCam at the size it is designed around; larger and smaller sizes scale from 
 `Ctrl+=`, `Ctrl+-`, and `Ctrl+scroll` set your own size on top of that, from 50% to
 300% in browser-sized steps. It is remembered for the next window you open.
 
+Omawrite speaks the language picked under Omarchy's Setup > Language and switches with it, without a restart. Right-to-left languages mirror the window. The translations live in `src/i18n/`, one JSON file per language keyed by the English text, and `src/i18n/en.json` lists every string to translate.
+
 ## Requirements
 
 - Qt 6: `qt6-base`, `qt6-declarative` (which includes Qt Quick Controls), and `qt6-multimedia`
@@ -151,14 +152,11 @@ WriteCam at the size it is designed around; larger and smaller sizes scale from 
 The IBM Plex Mono font is bundled under the SIL Open Font License 1.1; see
 `fonts/OFL.txt`. The font is copyright IBM Corp.
 
-## Build and install
+## Build
 
-For a local build, install the Qt requirements above, a C++17 compiler such as
-`gcc`, and `make`. The build scripts use `qmake6` (or `qmake`), and the tests use
-QtTest; both ship in `qt6-base`.
+For a local build, install the Qt requirements above, a C++17 compiler such as `gcc`, `cmake`, and `make`. `bin/build` configures and builds into `build/`, and `bin/test` builds and runs the Qt test suite through `ctest`.
 
 ```sh
-./bin/build
 ./bin/test
 ./build/writecam
 ```
@@ -168,20 +166,4 @@ require an active graphical session. To open a file with the local build:
 
 ```sh
 ./build/writecam path/to/document.md
-```
-
-On Arch Linux or Omarchy, install `base-devel` for the packaging tools, then
-build and install the package:
-
-```sh
-./bin/install
-```
-
-This runs the local build and `makepkg -fsi`, which installs the package through
-pacman and may ask for authentication. To build a package archive for inspection
-without installing it:
-
-```sh
-cd pkgbuild
-makepkg -f
 ```

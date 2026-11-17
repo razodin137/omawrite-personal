@@ -14,6 +14,7 @@
 #include "cli.h"
 #include "systemtheme.h"
 #include "toneplayer.h"
+#include "translator.h"
 
 #define WRITECAM_VERSION "0.7.2"
 
@@ -44,6 +45,11 @@ int main(int argc, char *argv[]) {
     app.setOrganizationDomain(QStringLiteral("omacom.io"));
 
     QQuickStyle::setStyle(QStringLiteral("Material"));
+
+    // Installed before anything is translated, and every qsTr() binding is
+    // re-evaluated when the Omarchy language changes.
+    Translator translator;
+    app.installTranslator(&translator);
 
     Backend backend(&app);
     TonePlayer tonePlayer(&app);
@@ -83,6 +89,9 @@ int main(int argc, char *argv[]) {
         for (const QQmlError &warning : warnings)
             qWarning().noquote() << warning.toString();
     });
+    QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
+    QObject::connect(&translator, &Translator::changed, &backend, &Backend::retranslate);
+    engine.rootContext()->setContextProperty(QStringLiteral("translator"), &translator);
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
 
     engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));
